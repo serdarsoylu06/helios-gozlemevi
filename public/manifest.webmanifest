@@ -1,0 +1,9 @@
+{
+  "name": "Helios Gözlemevi · Tellurion & Güneş Sistemi",
+  "short_name": "Helios",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#030610",
+  "theme_color": "#070b16",
+  "description": "Gerçek Kepler yörüngeleri, NASA uydu dokuları, gece şehir ışıkları ve mekanik Tellurion ile etkileşimli 3D astronomi gözlemevi."
+}
