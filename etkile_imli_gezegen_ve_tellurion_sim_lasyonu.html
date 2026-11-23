@@ -1,0 +1,2110 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Helios · Etkileşimli Tellurion & Güneş Sistemi Gözlemevi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --hud-bg: rgba(7, 11, 22, 0.74);
+            --hud-bg-elevated: rgba(13, 20, 38, 0.82);
+            --hud-border: rgba(255, 255, 255, 0.09);
+            --hud-border-strong: rgba(255, 255, 255, 0.16);
+            --accent-solar: #f59e0b;
+            --accent-earth: #38bdf8;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: radial-gradient(circle at 50% 45%, #090f24 0%, #030610 100%);
+            color: #e2e8f0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .font-display {
+            font-family: 'Space Grotesk', 'Inter', sans-serif;
+        }
+        .font-mono-num {
+            font-family: 'JetBrains Mono', ui-monospace, monospace;
+            font-variant-numeric: tabular-nums;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            position: relative;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+        }
+        canvas:active {
+            cursor: grabbing;
+        }
+
+        /* Observatory Glass Panels */
+        .hud-panel {
+            background: var(--hud-bg);
+            backdrop-filter: blur(20px) saturate(140%);
+            -webkit-backdrop-filter: blur(20px) saturate(140%);
+            border: 1px solid var(--hud-border);
+            box-shadow:
+                0 12px 40px -12px rgba(0, 0, 0, 0.75),
+                inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+        }
+        .hud-subcard {
+            background: rgba(15, 23, 42, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        /* Precision Range Sliders */
+        input[type=range] {
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            cursor: pointer;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            background: rgba(148, 163, 184, 0.22);
+            border-radius: 999px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 14px;
+            width: 14px;
+            border-radius: 50%;
+            background: #f8fafc;
+            border: 2px solid #f59e0b;
+            margin-top: -5px;
+            box-shadow: 0 0 12px rgba(245, 158, 11, 0.65);
+            transition: transform 0.12s ease, box-shadow 0.12s ease;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.22);
+            box-shadow: 0 0 16px rgba(245, 158, 11, 0.9);
+        }
+        input[type=range]:focus-visible {
+            outline: none;
+        }
+        input[type=range]:focus-visible::-webkit-slider-thumb {
+            box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.35);
+        }
+
+        /* Timeline seasonal gradient track */
+        #manual-crank-slider::-webkit-slider-runnable-track {
+            height: 5px;
+            background: linear-gradient(90deg,
+                rgba(52, 211, 153, 0.55) 0%,
+                rgba(245, 158, 11, 0.65) 25%,
+                rgba(249, 115, 22, 0.6) 50%,
+                rgba(56, 189, 248, 0.65) 75%,
+                rgba(52, 211, 153, 0.55) 100%);
+        }
+
+        /* 3D Floating Telemetry Labels */
+        .planet-label {
+            position: absolute;
+            transform: translate(-50%, -100%);
+            pointer-events: auto;
+            cursor: pointer;
+            transition: transform 0.16s ease, border-color 0.16s ease, background-color 0.16s ease;
+            margin-top: -12px;
+            background: rgba(7, 11, 22, 0.78);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+        }
+        .planet-label:hover {
+            transform: translate(-50%, -108%) scale(1.06);
+            border-color: rgba(245, 158, 11, 0.65);
+            z-index: 30;
+        }
+        .planet-label.is-selected {
+            border-color: rgba(245, 158, 11, 0.9);
+            background: rgba(245, 158, 11, 0.16);
+            box-shadow: 0 0 18px rgba(245, 158, 11, 0.25);
+        }
+
+        /* Slim dark scrollbar */
+        #sidebar-panels {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(148, 163, 184, 0.25) transparent;
+        }
+        #sidebar-panels::-webkit-scrollbar {
+            width: 4px;
+        }
+        #sidebar-panels::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        #sidebar-panels::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.28);
+            border-radius: 999px;
+        }
+
+        /* Custom Toggle Switch */
+        .hud-switch {
+            position: relative;
+            width: 30px;
+            height: 16px;
+            appearance: none;
+            -webkit-appearance: none;
+            background: rgba(148, 163, 184, 0.25);
+            border-radius: 999px;
+            cursor: pointer;
+            transition: background 0.18s ease;
+            flex-shrink: 0;
+        }
+        .hud-switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #cbd5e1;
+            transition: transform 0.18s ease, background 0.18s ease;
+        }
+        .hud-switch:checked {
+            background: rgba(245, 158, 11, 0.85);
+        }
+        .hud-switch:checked::after {
+            transform: translateX(14px);
+            background: #0f172a;
+        }
+    </style>
+</head>
+<body class="relative w-screen h-screen overflow-hidden antialiased">
+
+    <!-- 3D WebGL Sahnesi -->
+    <div id="canvas-container"></div>
+
+    <!-- 3D Gezegen Etiketleri Katmanı -->
+    <div id="labels-container" class="absolute inset-0 pointer-events-none overflow-hidden z-10"></div>
+
+    <!-- Üst Gözlemevi Barı -->
+    <header class="absolute top-3 left-3 right-3 md:top-4 md:left-5 md:right-5 flex flex-wrap items-center justify-between gap-2.5 z-20 pointer-events-none">
+        <!-- Marka & Durum -->
+        <div class="hud-panel px-3.5 py-2 rounded-2xl pointer-events-auto flex items-center gap-3">
+            <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 via-orange-500 to-rose-600 flex items-center justify-center shadow-lg shadow-amber-500/25 shrink-0">
+                <svg class="w-4.5 h-4.5 text-slate-950" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="4"/>
+                    <path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41"/>
+                </svg>
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <h1 class="font-display text-sm md:text-[15px] font-bold text-white tracking-tight">HELIOS GÖZLEMEVİ</h1>
+                    <span id="texture-status-pill" class="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono-num uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-sky-500/15 text-sky-300 border border-sky-400/25">
+                        <span class="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse"></span>
+                        HD Uydu
+                    </span>
+                </div>
+                <p class="text-[11px] text-slate-400 leading-tight">Tellurion & Güneş Sistemi Yörünge Simülatörü</p>
+            </div>
+        </div>
+
+        <!-- Mod Seçici (Segmented Control) -->
+        <div class="hud-panel p-1 rounded-2xl pointer-events-auto flex items-center gap-1" role="group" aria-label="Simülasyon Modu">
+            <button id="btn-mode-tellurion" onclick="switchMode('tellurion')" aria-pressed="true" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 bg-amber-500 text-slate-950 shadow-md shadow-amber-500/25">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8M12 3a14.5 14.5 0 0 0 0 18 14.5 14.5 0 0 0 0-18"/></svg>
+                Tellurion
+            </button>
+            <button id="btn-mode-solar" onclick="switchMode('solar')" aria-pressed="false" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 text-slate-300 hover:text-white hover:bg-white/5">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(-24 12 12)"/></svg>
+                Güneş Sistemi
+            </button>
+        </div>
+    </header>
+
+    <!-- Sol Telemetri Çekmecesi -->
+    <aside class="absolute top-[70px] md:top-[72px] left-3 md:left-5 z-20 w-[296px] sm:w-[312px] pointer-events-none flex flex-col gap-2 max-h-[calc(100vh-192px)]">
+        <div class="pointer-events-auto flex items-center gap-2">
+            <button id="btn-toggle-sidebar" onclick="toggleSidebar()" aria-expanded="true" aria-controls="sidebar-panels" class="hud-panel px-2.5 py-1 rounded-xl text-[11px] font-medium text-slate-300 hover:text-white hover:bg-white/5 transition flex items-center gap-1.5">
+                <svg id="sidebar-toggle-icon" class="w-3.5 h-3.5 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+                <span id="sidebar-toggle-text">Telemetriyi Gizle</span>
+            </button>
+        </div>
+
+        <div id="sidebar-panels" class="flex flex-col gap-2.5 overflow-y-auto pr-1 pb-1">
+            <!-- Efemeris & Mevsim Kartı -->
+            <section id="tellurion-info-card" class="hud-panel p-3.5 rounded-2xl pointer-events-auto">
+                <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-white/10">
+                    <span class="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400/90">Efemeris & Mevsim</span>
+                    <span id="day-counter" class="text-[11px] font-mono-num text-slate-200 bg-white/5 border border-white/10 px-2 py-0.5 rounded-md">GÜN 001 / 365</span>
+                </div>
+
+                <!-- Tarih + Mevsim + Deklinasyon -->
+                <div class="grid grid-cols-3 gap-1.5 mb-2.5">
+                    <div class="hud-subcard p-2 rounded-xl">
+                        <div class="text-[9px] text-slate-400 uppercase tracking-wider">Tarih</div>
+                        <div id="current-month-text" class="text-xs font-bold text-white mt-0.5 truncate">21 Mart</div>
+                    </div>
+                    <div class="hud-subcard p-2 rounded-xl">
+                        <div class="text-[9px] text-slate-400 uppercase tracking-wider">Kuzey Y.K.</div>
+                        <div id="current-season-text" class="text-xs font-bold text-emerald-400 mt-0.5 truncate">İlkbahar</div>
+                    </div>
+                    <div class="hud-subcard p-2 rounded-xl">
+                        <div class="text-[9px] text-slate-400 uppercase tracking-wider">Deklinasyon</div>
+                        <div id="solar-decl-text" class="text-xs font-mono-num font-semibold text-amber-300 mt-0.5">0.0°</div>
+                    </div>
+                </div>
+
+                <!-- Ekinoks & Gündönümü Hızlı Atlama -->
+                <div class="grid grid-cols-4 gap-1 mb-2.5" role="group" aria-label="Ekinoks ve gündönümü hızlı atlama">
+                    <button onclick="jumpToDay(0)" class="py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/25 border border-emerald-400/25 text-[10px] font-mono-num font-semibold text-emerald-300 transition" title="İlkbahar Ekinoksu">21 Mar</button>
+                    <button onclick="jumpToDay(92)" class="py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/25 border border-amber-400/25 text-[10px] font-mono-num font-semibold text-amber-300 transition" title="Yaz Gündönümü">21 Haz</button>
+                    <button onclick="jumpToDay(186)" class="py-1 rounded-lg bg-orange-500/10 hover:bg-orange-500/25 border border-orange-400/25 text-[10px] font-mono-num font-semibold text-orange-300 transition" title="Sonbahar Ekinoksu">23 Eyl</button>
+                    <button onclick="jumpToDay(275)" class="py-1 rounded-lg bg-sky-500/10 hover:bg-sky-500/25 border border-sky-400/25 text-[10px] font-mono-num font-semibold text-sky-300 transition" title="Kış Gündönümü">21 Ara</button>
+                </div>
+
+                <!-- Konum Gündüz Süresi & Canlı Güneş Yayı -->
+                <div class="hud-subcard p-2.5 rounded-xl mb-2.5">
+                    <div class="flex items-center justify-between gap-2 mb-1.5">
+                        <label for="city-select" class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Güneş Yüksekliği</label>
+                        <select id="city-select" onchange="updateCityMetrics()" aria-label="Şehir seçimi" class="bg-slate-900/90 text-slate-100 text-[11px] rounded-lg px-2 py-0.5 border border-white/15 focus:outline-none focus:ring-1 focus:ring-amber-400">
+                            <option value="41.0">İstanbul (41°K)</option>
+                            <option value="39.9">Ankara (40°K)</option>
+                            <option value="0.0">Ekvator (0°)</option>
+                            <option value="69.6">Tromsø (70°K)</option>
+                            <option value="-33.9">Sidney (34°G)</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <!-- Canlı Ufuk & Güneş Yayı SVG -->
+                        <svg id="solar-arc-svg" viewBox="0 0 110 56" class="w-[104px] h-[52px] shrink-0 overflow-visible" aria-hidden="true">
+                            <defs>
+                                <linearGradient id="sunArcGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.35"/>
+                                    <stop offset="100%" stop-color="#f59e0b" stop-opacity="0.0"/>
+                                </linearGradient>
+                            </defs>
+                            <line x1="6" y1="48" x2="104" y2="48" stroke="rgba(148,163,184,0.35)" stroke-width="1"/>
+                            <path d="M 12 48 A 43 43 0 0 1 98 48" fill="none" stroke="rgba(148,163,184,0.14)" stroke-width="1" stroke-dasharray="2 2"/>
+                            <path id="solar-arc-fill" d="M 12 48 Q 55 10 98 48 Z" fill="url(#sunArcGrad)"/>
+                            <path id="solar-arc-path" d="M 12 48 Q 55 10 98 48" fill="none" stroke="#f59e0b" stroke-width="1.8" stroke-linecap="round"/>
+                            <circle id="solar-arc-sun" cx="55" cy="24" r="4" fill="#fbbf24" stroke="#fef3c7" stroke-width="1.2"/>
+                            <text x="6" y="55" fill="#64748b" font-size="7" font-family="JetBrains Mono">D</text>
+                            <text x="98" y="55" fill="#64748b" font-size="7" font-family="JetBrains Mono">B</text>
+                        </svg>
+                        <div class="flex-1 grid grid-cols-1 gap-1.5 text-[11px]">
+                            <div class="flex items-baseline justify-between">
+                                <span class="text-[10px] text-slate-400">Gündüz</span>
+                                <strong id="city-daylight-text" class="font-mono-num text-amber-300">12 sa 00 dk</strong>
+                            </div>
+                            <div class="flex items-baseline justify-between">
+                                <span class="text-[10px] text-slate-400">Öğle Açısı</span>
+                                <strong id="city-noon-angle-text" class="font-mono-num text-sky-300">49.0°</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Geometrik SVG Ay Evresi & Tutulma -->
+                <div class="hud-subcard p-2.5 rounded-xl flex items-center gap-3">
+                    <svg id="moon-phase-svg" viewBox="0 0 40 40" class="w-10 h-10 shrink-0" aria-hidden="true">
+                        <circle cx="20" cy="20" r="17" fill="#0f172a" stroke="rgba(148,163,184,0.35)" stroke-width="1.2"/>
+                        <path id="moon-lit-path" d="" fill="#e2e8f0"/>
+                    </svg>
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-[9px] text-slate-400 uppercase tracking-wider">Ay Evresi · 5.1° Eğik</span>
+                            <span id="moon-illum-text" class="text-[10px] font-mono-num text-slate-300">%0</span>
+                        </div>
+                        <div id="moon-phase-text" class="text-xs font-semibold text-sky-300 truncate mt-0.5">Yeni Ay</div>
+                        <div class="text-[10px] text-slate-400 font-mono-num">Kavuşum 29.5g · Yıldızıl 27.3g</div>
+                    </div>
+                </div>
+
+                <div id="eclipse-alert" class="hidden mt-2 text-[11px] font-semibold px-2.5 py-1.5 rounded-xl border text-center" role="status" aria-live="polite"></div>
+            </section>
+
+            <!-- Seçili Gök Cismi Telemetri Kartı -->
+            <section id="planet-info-card" class="hud-panel p-3.5 rounded-2xl pointer-events-auto">
+                <div class="flex items-center justify-between mb-1.5">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span id="selected-planet-dot" class="w-2.5 h-2.5 rounded-full bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.8)] shrink-0"></span>
+                        <h2 id="selected-planet-name" class="font-display text-sm font-bold text-white truncate">Dünya (Yer)</h2>
+                    </div>
+                    <span id="selected-planet-badge" class="text-[10px] font-mono-num bg-sky-500/15 text-sky-300 border border-sky-400/25 px-2 py-0.5 rounded-full shrink-0">1.0x Ref</span>
+                </div>
+                <p id="selected-planet-desc" class="text-[11px] text-slate-300 leading-relaxed mb-2.5">
+                    Üzerinde yaşam barındıran, 23.5° eksen eğikliği sayesinde mevsimlerin oluştuğu gezegenimiz.
+                </p>
+                <div class="grid grid-cols-2 gap-1.5 text-[11px]">
+                    <div class="hud-subcard px-2 py-1.5 rounded-lg">
+                        <span class="text-[9px] text-slate-400 uppercase block">Kendi Ekseni</span>
+                        <strong id="selected-planet-day" class="text-slate-100 font-mono-num text-[11px]">24 Saat</strong>
+                    </div>
+                    <div class="hud-subcard px-2 py-1.5 rounded-lg">
+                        <span class="text-[9px] text-slate-400 uppercase block">Yörünge (Yıl)</span>
+                        <strong id="selected-planet-year" class="text-slate-100 font-mono-num text-[11px]">365.25 Gün</strong>
+                    </div>
+                    <div class="hud-subcard px-2 py-1.5 rounded-lg">
+                        <span class="text-[9px] text-slate-400 uppercase block">Gerçek Çap</span>
+                        <strong id="selected-planet-real-scale" class="text-amber-300 font-mono-num text-[11px]">1.0x (12.742 km)</strong>
+                    </div>
+                    <div class="hud-subcard px-2 py-1.5 rounded-lg">
+                        <span class="text-[9px] text-slate-400 uppercase block">Model Ölçeği</span>
+                        <strong id="selected-planet-model-scale" class="text-emerald-300 font-mono-num text-[11px]">1.00 Birim</strong>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </aside>
+
+    <!-- Sağ Üst Kamera & Katman Kontrolleri -->
+    <div class="absolute top-[70px] md:top-[72px] right-3 md:right-5 z-20 flex flex-col gap-2 pointer-events-auto">
+        <div class="hud-panel p-2.5 rounded-2xl flex flex-col gap-1 w-48">
+            <span class="text-[9px] text-slate-400 font-semibold uppercase tracking-[0.14em] px-1.5 pb-1">Kamera Odağı</span>
+            <button onclick="focusCamera('sun')" class="px-2 py-1.5 rounded-xl text-xs font-medium text-left hover:bg-white/10 transition flex items-center gap-2 text-amber-300">
+                <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2"/></svg>
+                <span>Güneş (Merkez)</span>
+            </button>
+            <button onclick="focusCamera('earth')" class="px-2 py-1.5 rounded-xl text-xs font-medium text-left hover:bg-white/10 transition flex items-center gap-2 text-sky-300">
+                <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8"/></svg>
+                <span>Dünya Yakın Çekim</span>
+            </button>
+            <button onclick="focusCamera('top')" class="px-2 py-1.5 rounded-xl text-xs font-medium text-left hover:bg-white/10 transition flex items-center gap-2 text-slate-200">
+                <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>
+                <span>Kuşbakışı Yörünge</span>
+            </button>
+
+            <div class="border-t border-white/10 my-1.5"></div>
+            <span class="text-[9px] text-slate-400 font-semibold uppercase tracking-[0.14em] px-1.5 pb-0.5">Katmanlar</span>
+
+            <label class="flex items-center justify-between gap-2 px-1.5 py-1 text-[11px] text-slate-300 cursor-pointer">
+                <span>Etiketler</span>
+                <input type="checkbox" id="toggle-labels" checked onchange="toggleLabels(this.checked)" class="hud-switch">
+            </label>
+            <label class="flex items-center justify-between gap-2 px-1.5 py-1 text-[11px] text-slate-300 cursor-pointer">
+                <span>Işık Huzmesi</span>
+                <input type="checkbox" id="toggle-lightbeam" checked onchange="toggleLightBeam(this.checked)" class="hud-switch">
+            </label>
+            <label class="flex items-center justify-between gap-2 px-1.5 py-1 text-[11px] text-slate-300 cursor-pointer">
+                <span>Bulut & Atmosfer</span>
+                <input type="checkbox" id="toggle-clouds" checked onchange="toggleClouds(this.checked)" class="hud-switch">
+            </label>
+            <label class="flex items-center justify-between gap-2 px-1.5 py-1 text-[11px] text-slate-300 cursor-pointer" title="Dünya'nın yılda 365 kez dönmesi">
+                <span>Gerçek Gün Hızı</span>
+                <input type="checkbox" id="toggle-real-spin" onchange="toggleRealSpin(this.checked)" class="hud-switch">
+            </label>
+
+            <div class="border-t border-white/10 mt-1 pt-1.5 px-1.5 text-[10px] text-slate-400 flex items-center justify-between">
+                <span>Kısayollar</span>
+                <span class="font-mono-num text-slate-300">Space · ←/→</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alt Zaman Çizelgesi ve Kontrol İskelesi -->
+    <footer class="absolute bottom-3 left-3 right-3 md:bottom-5 md:left-5 md:right-5 z-20 pointer-events-none flex justify-center">
+        <div class="hud-panel w-full max-w-3xl px-4 py-3 rounded-2xl pointer-events-auto flex flex-col gap-2.5">
+            <!-- Zaman Çarkı (Yörünge Çizelgesi) -->
+            <div class="flex items-center gap-3">
+                <span class="text-[10px] font-mono-num uppercase tracking-wider text-slate-400 shrink-0 hidden sm:inline">Zaman Çarkı</span>
+                <div class="flex-1 flex flex-col gap-1">
+                    <input id="manual-crank-slider" type="range" min="0" max="365" step="0.25" value="0" aria-label="Yılın günü zaman çarkı" class="w-full">
+                    <div class="flex justify-between text-[9px] font-mono-num text-slate-400 px-0.5">
+                        <span>21 Mar</span>
+                        <span>21 Haz</span>
+                        <span>23 Eyl</span>
+                        <span>21 Ara</span>
+                        <span>21 Mar</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Oynatma, Hız ve Ölçek Satırı -->
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-white/10">
+                <div class="flex items-center gap-1.5">
+                    <button id="btn-play-pause" onclick="togglePlay()" aria-label="Simülasyonu oynat veya duraklat" class="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition active:scale-95">
+                        <span id="play-icon" class="inline-flex" aria-hidden="true">
+                            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+                        </span>
+                        <span id="play-text">Duraklat</span>
+                    </button>
+                    <button onclick="stepDay(-15)" class="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-mono-num text-slate-200 transition" title="15 Gün Geri Sar" aria-label="15 gün geri sar">-15g</button>
+                    <button onclick="stepDay(15)" class="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-mono-num text-slate-200 transition" title="15 Gün İleri Sar" aria-label="15 gün ileri sar">+15g</button>
+                </div>
+
+                <div class="flex items-center gap-2 flex-1 min-w-[155px] max-w-[215px]">
+                    <label for="speed-slider" class="text-[11px] text-slate-400 whitespace-nowrap">Hız</label>
+                    <input id="speed-slider" type="range" min="0.1" max="4" step="0.1" value="1.0" oninput="updateSpeed(this.value)" class="w-full">
+                    <span id="speed-label" class="text-[11px] font-mono-num text-amber-300 w-8 text-right">1.0x</span>
+                </div>
+
+                <div class="flex items-center gap-2 flex-1 min-w-[155px] max-w-[215px]">
+                    <label for="scale-slider" class="text-[11px] text-slate-400 whitespace-nowrap">Ölçek</label>
+                    <input id="scale-slider" type="range" min="0.6" max="1.8" step="0.1" value="1.0" oninput="updatePlanetScale(this.value)" class="w-full">
+                    <span id="scale-label" class="text-[11px] font-mono-num text-emerald-300 w-8 text-right">1.0x</span>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        /* ==========================================
+         * 1. GEZEGEN VERİLERİ VE ASTRONOMİK SABİTLER
+         * ========================================== */
+        const PLANET_DATA = {
+            sun: {
+                id: 'sun',
+                name: 'Güneş',
+                badge: 'Merkez Yıldız',
+                desc: 'Güneş Sistemi\'nin merkezindeki G2V tipi anakol yıldızı. 5.500 °C fotosfer sıcaklığıyla tüm gezegenlere ısı ve ışık sağlar.',
+                dayText: '25.4 Gün',
+                yearText: '—',
+                realScaleText: '109x Dünya',
+                modelScaleText: '3.50 Birim',
+                radius: 3.5,
+                color: '#f59e0b'
+            },
+            mercury: {
+                id: 'mercury',
+                name: 'Merkür',
+                badge: '0.38x Dünya',
+                desc: 'Güneş\'e en yakın ve en küçük gezegen. İnce ekzosferi nedeniyle gündüz +430 °C, gece -180 °C arasında değişen uç sıcaklıklara sahiptir.',
+                dayText: '58.6 Gün',
+                yearText: '88 Gün',
+                realScaleText: '0.38x Dünya',
+                modelScaleText: '0.45 Birim',
+                radius: 0.45,
+                distance: 7.5,
+                orbitSpeed: 4.15,
+                rotSpeed: 0.8,
+                tilt: 0.03,
+                color: '#94a3b8'
+            },
+            venus: {
+                id: 'venus',
+                name: 'Venüs',
+                badge: '0.95x Dünya',
+                desc: '177.3° eksen eğikliği nedeniyle ters yönde (retrograd) döner. Yoğun CO₂ atmosferi güçlü sera etkisiyle yüzeyini 465 °C\'de tutar.',
+                dayText: '243 Gün (Ters)',
+                yearText: '225 Gün',
+                realScaleText: '0.95x Dünya',
+                modelScaleText: '0.88 Birim',
+                radius: 0.88,
+                distance: 10.5,
+                orbitSpeed: 1.62,
+                rotSpeed: 0.5, // 177.3° eksen eğikliği tek başına retrograd dönüşü sağlar
+                tilt: 177.3,
+                color: '#f59e0b'
+            },
+            earth: {
+                id: 'earth',
+                name: 'Dünya (Yer)',
+                badge: '1.0x Ref',
+                desc: 'Üzerinde sıvı su ve yaşam barındıran gezegenimiz. Uzayda sabit kalan 23.5° eksen eğikliği yıl boyunca mevsimleri ve gündüz süresini değiştirir.',
+                dayText: '23 sa 56 dk',
+                yearText: '365.25 Gün',
+                realScaleText: '1.0x (12.742 km)',
+                modelScaleText: '1.00 Birim',
+                radius: 1.0,
+                distance: 14.5,
+                orbitSpeed: 1.0,
+                rotSpeed: 12.0,
+                tilt: 23.5,
+                color: '#38bdf8'
+            },
+            moon: {
+                id: 'moon',
+                name: 'Ay (Uydu)',
+                badge: '0.27x Dünya',
+                desc: 'Dünya\'nın doğal uydusu. Ekliptiğe göre 5.14° eğik yörüngede döner; bu yüzden tutulmalar yalnızca düğüm noktalarına yakın evrelerde gerçekleşir.',
+                dayText: '27.3 Gün',
+                yearText: '29.5g Kavuşum',
+                realScaleText: '0.27x Dünya',
+                modelScaleText: '0.32 Birim',
+                radius: 0.32,
+                color: '#cbd5e1'
+            },
+            mars: {
+                id: 'mars',
+                name: 'Mars',
+                badge: '0.53x Dünya',
+                desc: 'Demir oksit açısından zengin Kızıl Gezegen. 25.2° eksen eğikliği ve 24 saat 37 dakikalık günüyle Dünya\'ya en çok benzeyen mevsim döngüsüne sahiptir.',
+                dayText: '24 sa 37 dk',
+                yearText: '687 Gün',
+                realScaleText: '0.53x Dünya',
+                modelScaleText: '0.62 Birim',
+                radius: 0.62,
+                distance: 19.0,
+                orbitSpeed: 0.53,
+                rotSpeed: 11.5,
+                tilt: 25.2,
+                color: '#ef4444'
+            },
+            jupiter: {
+                id: 'jupiter',
+                name: 'Jüpiter',
+                badge: '11.2x Dünya',
+                desc: 'Güneş Sistemi\'nin en büyük gaz devi. Kendi ekseni etrafında 10 saatten kısa sürede dönerek belirgin kuşaklar ve Büyük Kırmızı Leke\'yi oluşturur.',
+                dayText: '9 sa 55 dk',
+                yearText: '11.86 Yıl',
+                realScaleText: '11.2x Dünya',
+                modelScaleText: '2.25 Birim',
+                radius: 2.25,
+                distance: 25.0,
+                orbitSpeed: 0.22,
+                rotSpeed: 24.0,
+                tilt: 3.1,
+                color: '#d97706'
+            },
+            saturn: {
+                id: 'saturn',
+                name: 'Satürn',
+                badge: '9.4x Dünya',
+                desc: 'Cassini Bölünmesi\'ni içeren buz ve kaya halkalarıyla tanınan gaz devi. 26.7° eğikliği sayesinde halkaları Dünya\'dan farklı açılarla gözlenir.',
+                dayText: '10 sa 33 dk',
+                yearText: '29.45 Yıl',
+                realScaleText: '9.45x Dünya',
+                modelScaleText: '1.90 Birim',
+                radius: 1.9,
+                distance: 32.0,
+                orbitSpeed: 0.14,
+                rotSpeed: 21.0,
+                tilt: 26.7,
+                hasRings: true,
+                color: '#eab308'
+            },
+            uranus: {
+                id: 'uranus',
+                name: 'Uranüs',
+                badge: '4.0x Dünya',
+                desc: '97.8° eksen eğikliğiyle yörüngesinde adeta yan yatmış halde yuvarlanan buz devi. Her kutbu 42 yıl kesintisiz Güneş ışığı alır.',
+                dayText: '17 sa 14 dk',
+                yearText: '84 Yıl',
+                realScaleText: '4.0x Dünya',
+                modelScaleText: '1.35 Birim',
+                radius: 1.35,
+                distance: 38.5,
+                orbitSpeed: 0.09,
+                rotSpeed: 15.0, // 97.8° eksen eğikliği tek başına retrograd yuvarlanma sağlar
+                tilt: 97.8,
+                color: '#06b6d4'
+            },
+            neptune: {
+                id: 'neptune',
+                name: 'Neptün',
+                badge: '3.9x Dünya',
+                desc: 'Güneş\'e en uzak gezegen. Metan zengini derin mavi atmosferinde saatte 2.100 km\'yi aşan süpersonik rüzgarlar eser.',
+                dayText: '16 sa 06 dk',
+                yearText: '164.8 Yıl',
+                realScaleText: '3.88x Dünya',
+                modelScaleText: '1.30 Birim',
+                radius: 1.30,
+                distance: 44.0,
+                orbitSpeed: 0.06,
+                rotSpeed: 16.0,
+                tilt: 28.3,
+                color: '#3b82f6'
+            }
+        };
+
+        // NASA / Three.js Yüksek Çözünürlüklü Uydu Dokuları (CORS destekli CDN)
+        const TEXTURE_URLS = {
+            earthDay: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg',
+            earthNormal: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_normal_2048.jpg',
+            earthSpecular: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_specular_2048.jpg',
+            earthClouds: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_clouds_1024.png',
+            moon: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/moon_1024.jpg'
+        };
+
+        /* ==========================================
+         * 2. PROSEDÜREL DOKU & SHADER ÜRETİCİLERİ
+         * ========================================== */
+
+        // Güneş Fotosfer Granülasyon Dokusu
+        function createSunPhotosphereTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            const baseGrad = ctx.createLinearGradient(0, 0, 0, 512);
+            baseGrad.addColorStop(0, '#ea580c');
+            baseGrad.addColorStop(0.25, '#f97316');
+            baseGrad.addColorStop(0.5, '#fbbf24');
+            baseGrad.addColorStop(0.75, '#f97316');
+            baseGrad.addColorStop(1, '#c2410c');
+            ctx.fillStyle = baseGrad;
+            ctx.fillRect(0, 0, 1024, 512);
+
+            // Plazma konveksiyon hücreleri
+            for (let i = 0; i < 650; i++) {
+                const x = (Math.sin(i * 12.9898) * 43758.5453 % 1 + 1) % 1 * 1024;
+                const y = (Math.sin(i * 78.233) * 24634.6345 % 1 + 1) % 1 * 512;
+                const r = 8 + (i % 26);
+                const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+                if (i % 3 === 0) {
+                    g.addColorStop(0, 'rgba(254, 249, 195, 0.55)');
+                    g.addColorStop(1, 'rgba(254, 249, 195, 0)');
+                } else if (i % 5 === 0) {
+                    g.addColorStop(0, 'rgba(185, 28, 28, 0.35)');
+                    g.addColorStop(1, 'rgba(185, 28, 28, 0)');
+                } else {
+                    g.addColorStop(0, 'rgba(251, 146, 60, 0.4)');
+                    g.addColorStop(1, 'rgba(251, 146, 60, 0)');
+                }
+                ctx.fillStyle = g;
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Birkaç Güneş lekesi
+            for (let i = 0; i < 7; i++) {
+                const x = 120 + i * 135;
+                const y = 180 + ((i * 67) % 150);
+                const spot = ctx.createRadialGradient(x, y, 2, x, y, 16);
+                spot.addColorStop(0, 'rgba(69, 10, 10, 0.8)');
+                spot.addColorStop(0.5, 'rgba(154, 52, 18, 0.45)');
+                spot.addColorStop(1, 'rgba(251, 146, 60, 0)');
+                ctx.fillStyle = spot;
+                ctx.beginPath();
+                ctx.arc(x, y, 16, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.encoding = THREE.sRGBEncoding;
+            return tex;
+        }
+
+        // Güneş Korona Hale Dokusu (Sprite için)
+        function createCoronaGlowTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(256, 256, 20, 256, 256, 256);
+            grad.addColorStop(0.0, 'rgba(255, 251, 235, 1.0)');
+            grad.addColorStop(0.18, 'rgba(253, 224, 71, 0.72)');
+            grad.addColorStop(0.42, 'rgba(249, 115, 22, 0.28)');
+            grad.addColorStop(0.7, 'rgba(220, 38, 38, 0.08)');
+            grad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 512, 512);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        // Dünya Atmosferik Rayleigh Saçılımı (Fresnel Rim Glow Shader)
+        function createEarthAtmosphereMaterial() {
+            return new THREE.ShaderMaterial({
+                uniforms: {
+                    sunPosition: { value: new THREE.Vector3(0, 1.2, 0) }
+                },
+                vertexShader: `
+                    varying vec3 vNormal;
+                    varying vec3 vWorldPos;
+                    void main() {
+                        vNormal = normalize(normalMatrix * normal);
+                        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                        vWorldPos = worldPosition.xyz;
+                        gl_Position = projectionMatrix * viewMatrix * worldPosition;
+                    }
+                `,
+                fragmentShader: `
+                    uniform vec3 sunPosition;
+                    varying vec3 vNormal;
+                    varying vec3 vWorldPos;
+                    void main() {
+                        vec3 viewDir = normalize(cameraPosition - vWorldPos);
+                        float rim = pow(clamp(1.0 - max(dot(vNormal, viewDir), 0.0), 0.0, 1.0), 3.2);
+                        vec3 toSun = normalize(sunPosition - vWorldPos);
+                        // Dünya'nın güneşe bakan atmosfer kenarında daha parlak mavi saçılım
+                        float sunSide = smoothstep(-0.35, 0.6, dot(normalize(vWorldPos - vec3(0.0)), -toSun) * 0.2 + 0.65);
+                        vec3 dayColor = vec3(0.26, 0.68, 1.0);
+                        vec3 twilightColor = vec3(0.12, 0.35, 0.85);
+                        vec3 col = mix(twilightColor, dayColor, sunSide);
+                        gl_FragColor = vec4(col, rim * 0.78);
+                    }
+                `,
+                blending: THREE.AdditiveBlending,
+                side: THREE.FrontSide,
+                transparent: true,
+                depthWrite: false
+            });
+        }
+
+        // Takvim ve Mevsim Diski Dokusu (Kırmızı ibre açısıyla birebir hizalı, gözlemevi estetiği)
+        function createCalendarDialTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 1024;
+            const ctx = canvas.getContext('2d');
+            const cx = 512, cy = 512;
+
+            const dayToAngle = (d) => -Math.PI / 2 - (d / 365.25) * Math.PI * 2;
+
+            // Koyu antrasit dış halka
+            ctx.fillStyle = '#0b101d';
+            ctx.beginPath();
+            ctx.arc(cx, cy, 508, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Pirinç dış çerçeve çizgisi
+            ctx.strokeStyle = '#d4a656';
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.arc(cx, cy, 498, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // 4 Mevsim Dilimi (Zarif koyu gözlemevi paleti)
+            const seasons = [
+                { name: 'İLKBAHAR', color: '#14532d', accent: '#4ade80', startDay: 0, endDay: 92 },
+                { name: 'YAZ', color: '#7c2d12', accent: '#fbbf24', startDay: 92, endDay: 186 },
+                { name: 'SONBAHAR', color: '#78350f', accent: '#fb923c', startDay: 186, endDay: 275 },
+                { name: 'KIŞ', color: '#1e3a5f', accent: '#38bdf8', startDay: 275, endDay: 365.25 }
+            ];
+
+            seasons.forEach(s => {
+                const aStart = dayToAngle(s.startDay);
+                const aEnd = dayToAngle(s.endDay);
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.arc(cx, cy, 368, aEnd, aStart);
+                ctx.closePath();
+                ctx.fillStyle = s.color;
+                ctx.fill();
+                ctx.lineWidth = 2.5;
+                ctx.strokeStyle = 'rgba(212, 166, 86, 0.7)';
+                ctx.stroke();
+
+                // İnce renk vurgusu dış yay
+                ctx.beginPath();
+                ctx.arc(cx, cy, 364, aEnd, aStart);
+                ctx.lineWidth = 6;
+                ctx.strokeStyle = s.accent;
+                ctx.stroke();
+            });
+
+            // Derece çentikleri (72 adet / her 5°)
+            for (let i = 0; i < 72; i++) {
+                const angle = (i / 72) * Math.PI * 2;
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.rotate(angle);
+                ctx.beginPath();
+                ctx.moveTo(476, 0);
+                ctx.lineTo(494, 0);
+                ctx.strokeStyle = i % 6 === 0 ? 'rgba(212, 166, 86, 0.85)' : 'rgba(148, 163, 184, 0.35)';
+                ctx.lineWidth = i % 6 === 0 ? 2.5 : 1.2;
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            // Ayların 21 Mart = 0. gün sistemindeki başlangıç günleri
+            const monthSectors = [
+                { name: 'NİSAN', start: 11, end: 41 },
+                { name: 'MAYIS', start: 41, end: 72 },
+                { name: 'HAZİRAN', start: 72, end: 102 },
+                { name: 'TEMMUZ', start: 102, end: 133 },
+                { name: 'AĞUSTOS', start: 133, end: 164 },
+                { name: 'EYLÜL', start: 164, end: 194 },
+                { name: 'EKİM', start: 194, end: 225 },
+                { name: 'KASIM', start: 225, end: 255 },
+                { name: 'ARALIK', start: 255, end: 286 },
+                { name: 'OCAK', start: 286, end: 317 },
+                { name: 'ŞUBAT', start: 317, end: 345 },
+                { name: 'MART', start: 345, end: 376.25 }
+            ];
+
+            monthSectors.forEach(m => {
+                const angle = dayToAngle(m.start);
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.rotate(angle);
+                ctx.beginPath();
+                ctx.moveTo(368, 0);
+                ctx.lineTo(494, 0);
+                ctx.strokeStyle = 'rgba(226, 232, 240, 0.45)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.restore();
+            });
+
+            // Ay İsimleri
+            monthSectors.forEach(m => {
+                const midAngle = dayToAngle((m.start + m.end) / 2);
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.rotate(midAngle + Math.PI / 2);
+                ctx.fillStyle = '#e2e8f0';
+                ctx.font = '600 24px Space Grotesk, Inter, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(m.name, 0, -418);
+                ctx.restore();
+            });
+
+            // Mevsim İsimleri İç Halkada
+            seasons.forEach(s => {
+                const midAngle = dayToAngle((s.startDay + s.endDay) / 2);
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.rotate(midAngle + Math.PI / 2);
+                ctx.fillStyle = '#f8fafc';
+                ctx.font = '700 24px Space Grotesk, Inter, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(s.name, 0, -295);
+                ctx.restore();
+            });
+
+            // Fırçalanmış metal merkez göbek
+            const grad = ctx.createRadialGradient(cx, cy, 18, cx, cy, 224);
+            grad.addColorStop(0, '#334155');
+            grad.addColorStop(0.65, '#1e293b');
+            grad.addColorStop(0.95, '#0f172a');
+            grad.addColorStop(1, '#d4a656');
+            ctx.beginPath();
+            ctx.arc(cx, cy, 224, 0, Math.PI * 2);
+            ctx.fillStyle = grad;
+            ctx.fill();
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#d4a656';
+            ctx.stroke();
+
+            ctx.fillStyle = '#d4a656';
+            ctx.font = '600 20px Space Grotesk, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('HELIOS · EKLİPTİK TAKVİM', cx, cy + 146);
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.anisotropy = 8;
+            tex.encoding = THREE.sRGBEncoding;
+            return tex;
+        }
+
+        // Ay Evreleri Diski Dokusu (Gözlemevi koyu lacivert + pirinç halka)
+        function createMoonPhaseDialTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            const cx = 256, cy = 256;
+
+            ctx.fillStyle = '#090f1f';
+            ctx.beginPath();
+            ctx.arc(cx, cy, 252, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#0f2549';
+            ctx.beginPath();
+            ctx.arc(cx, cy, 234, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#d4a656';
+            ctx.stroke();
+
+            for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                const rx = cx + Math.cos(angle) * 168;
+                const ry = cy + Math.sin(angle) * 168;
+
+                ctx.beginPath();
+                ctx.arc(rx, ry, 22, 0, Math.PI * 2);
+                ctx.fillStyle = i === 0 ? '#0f172a' : '#f1f5f9';
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#94a3b8';
+                ctx.stroke();
+
+                if (i !== 0 && i !== 4) {
+                    ctx.beginPath();
+                    ctx.arc(rx, ry, 22, -Math.PI / 2, Math.PI / 2, i > 4);
+                    ctx.fillStyle = '#0f172a';
+                    ctx.fill();
+                }
+            }
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, 108, 0, Math.PI * 2);
+            ctx.fillStyle = '#0b101d';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(212, 166, 86, 0.75)';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.encoding = THREE.sRGBEncoding;
+            return tex;
+        }
+
+        // Yedek Dünya Dokusu (HD NASA uydu dokusu yüklenirken anında görünür)
+        function createEarthFallbackTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            const ocean = ctx.createLinearGradient(0, 0, 0, 512);
+            ocean.addColorStop(0, '#cbd5e1');
+            ocean.addColorStop(0.12, '#0c4a6e');
+            ocean.addColorStop(0.5, '#075985');
+            ocean.addColorStop(0.88, '#0c4a6e');
+            ocean.addColorStop(1, '#e2e8f0');
+            ctx.fillStyle = ocean;
+            ctx.fillRect(0, 0, 1024, 512);
+
+            const lands = [
+                [210, 150, 75, 50, '#2f6f4e'], [295, 315, 45, 65, '#256141'],
+                [515, 145, 50, 35, '#3b7a57'], [530, 265, 55, 75, '#a18a52'],
+                [685, 155, 105, 55, '#5a7d52'], [830, 355, 42, 32, '#9c6b43']
+            ];
+            lands.forEach(([x, y, rx, ry, c]) => {
+                ctx.fillStyle = c;
+                ctx.beginPath();
+                ctx.ellipse(x, y, rx, ry, 0.15, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.encoding = THREE.sRGBEncoding;
+            return tex;
+        }
+
+        // Gelişmiş Gezegen Dokuları (Mars kutup buzulları, Jüpiter fırtına bantları vb.)
+        function createDetailedPlanetTexture(key) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            const palettes = {
+                mercury: ['#6b7280', '#9ca3af', '#4b5563', '#d1d5db'],
+                venus: ['#b45309', '#d97706', '#f59e0b', '#fde68a'],
+                mars: ['#7c2d12', '#c2410c', '#ea580c', '#9a3412'],
+                jupiter: ['#92400e', '#d97706', '#fef3c7', '#b45309'],
+                saturn: ['#a16207', '#eab308', '#fef08a', '#ca8a04'],
+                uranus: ['#0e7490', '#22d3ee', '#67e8f9', '#0891b2'],
+                neptune: ['#1e3a8a', '#2563eb', '#3b82f6', '#1d4ed8'],
+                moon: ['#64748b', '#94a3b8', '#cbd5e1', '#475569']
+            };
+            const pal = palettes[key] || palettes.moon;
+
+            const grad = ctx.createLinearGradient(0, 0, 0, 512);
+            grad.addColorStop(0, pal[0]);
+            grad.addColorStop(0.3, pal[1]);
+            grad.addColorStop(0.5, pal[2]);
+            grad.addColorStop(0.75, pal[1]);
+            grad.addColorStop(1, pal[0]);
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 1024, 512);
+
+            // Atmosfer bantları (Gaz ve buz devleri)
+            if (['jupiter', 'saturn', 'venus', 'uranus', 'neptune'].includes(key)) {
+                const bandCount = key === 'jupiter' ? 28 : 16;
+                for (let i = 0; i < bandCount; i++) {
+                    const y = (i / bandCount) * 512;
+                    const h = 512 / bandCount;
+                    ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.14)';
+                    ctx.fillRect(0, y, 1024, h * 0.65);
+                }
+            }
+
+            // Krater / yüzey detayları
+            const featureCount = key === 'mercury' || key === 'moon' ? 90 : 32;
+            for (let i = 0; i < featureCount; i++) {
+                const x = ((i * 137.5) % 980) + 22;
+                const y = ((i * 73.1) % 440) + 36;
+                const rx = 10 + (i % 24);
+                const ry = (key === 'jupiter' || key === 'saturn') ? rx * 0.32 : rx * 0.85;
+                ctx.fillStyle = i % 2 === 0 ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.14)';
+                ctx.beginPath();
+                ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            if (key === 'mars') {
+                // Mars kutup buzulları
+                ctx.fillStyle = 'rgba(248, 250, 252, 0.88)';
+                ctx.fillRect(0, 0, 1024, 24);
+                ctx.fillRect(0, 492, 1024, 20);
+            }
+
+            if (key === 'jupiter') {
+                // Büyük Kırmızı Leke
+                const spot = ctx.createRadialGradient(520, 325, 8, 520, 325, 68);
+                spot.addColorStop(0, '#991b1b');
+                spot.addColorStop(0.55, '#dc2626');
+                spot.addColorStop(0.85, '#f59e0b');
+                spot.addColorStop(1, 'rgba(245,158,11,0)');
+                ctx.fillStyle = spot;
+                ctx.beginPath();
+                ctx.ellipse(520, 325, 68, 38, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.encoding = THREE.sRGBEncoding;
+            return tex;
+        }
+
+        // Satürn Halkası Dokusu (Cassini Bölünmesi ile)
+        function createSaturnRingTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createLinearGradient(0, 0, 512, 0);
+            grad.addColorStop(0.0, 'rgba(202, 138, 4, 0.0)');
+            grad.addColorStop(0.12, 'rgba(217, 179, 106, 0.35)');
+            grad.addColorStop(0.28, 'rgba(253, 230, 138, 0.88)');
+            grad.addColorStop(0.54, 'rgba(234, 179, 8, 0.82)');
+            grad.addColorStop(0.60, 'rgba(15, 23, 42, 0.06)'); // Cassini Bölünmesi
+            grad.addColorStop(0.65, 'rgba(15, 23, 42, 0.06)');
+            grad.addColorStop(0.70, 'rgba(245, 208, 130, 0.72)');
+            grad.addColorStop(0.92, 'rgba(217, 179, 106, 0.42)');
+            grad.addColorStop(1.0, 'rgba(217, 179, 106, 0.0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 512, 64);
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.encoding = THREE.sRGBEncoding;
+            return tex;
+        }
+
+        /* ==========================================
+         * 3. THREE.JS SAHNE KURULUMU & GERÇEKÇİ MODEL
+         * ========================================== */
+        let scene, camera, renderer, clock;
+        let currentMode = 'tellurion';
+        let isPlaying = true;
+        let simSpeed = 1.0;
+        let planetScaleMultiplier = 1.0;
+        let dayOfYear = 0; // 0 = 21 Mart
+        let showLabels = true;
+        let showLightBeam = true;
+        let showClouds = true;
+        let useRealSpin = false;
+        let sidebarCollapsed = false;
+        let selectedBodyId = 'earth';
+
+        const SOLAR_PLANET_IDS = new Set(['mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune']);
+        const SYNODIC_MONTH = 29.53059;
+        const DRACONIC_MONTH = 27.21222;
+        const MOON_INCLINATION_RAD = THREE.MathUtils.degToRad(5.145);
+        const tempVec = new THREE.Vector3();
+        const raycaster = new THREE.Raycaster();
+        const pointerNDC = new THREE.Vector2();
+        const clickableMeshes = [];
+
+        let lastUIIntDay = -1;
+        let lastMoonPhaseKey = '';
+        let lastEclipseKey = '';
+
+        // 3D Nesne Referansları
+        let sunMesh, sunCoronaSprite, sunLensHousing, lightBeamCone;
+        let tellurionGroup, calendarDiscMesh, mainArmGroup, earthSystemGroup;
+        let earthTiltGroup, earthMesh, earthCloudsMesh, earthAtmoMesh;
+        let moonPhaseDiscMesh, moonOrbitGroup, moonMesh, moonWireVert;
+        let solarSystemGroup;
+        const planetObjects = {};
+        const labelElements = {};
+
+        // Kamera Orbit Değişkenleri
+        let isDragging = false;
+        let pointerDownPos = { x: 0, y: 0 };
+        let prevMouse = { x: 0, y: 0 };
+        let pinchStartDist = 0;
+        let pinchStartRadius = 26;
+        let camSpherical = { radius: 26, theta: Math.PI / 4.2, phi: Math.PI / 3.1 };
+        let camTarget = new THREE.Vector3(4.5, 0.2, 0);
+        let desiredCamTarget = new THREE.Vector3(4.5, 0.2, 0);
+
+        const ICON_PAUSE = '<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>';
+        const ICON_PLAY = '<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+
+        function initScene() {
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            clock = new THREE.Clock();
+
+            camera = new THREE.PerspectiveCamera(44, window.innerWidth / window.innerHeight, 0.1, 1200);
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.15;
+            renderer.shadowMap.enabled = false;
+            container.appendChild(renderer.domElement);
+
+            // Sinematik Gözlemevi Işıklandırması (Net gece/gündüz terminatörü)
+            const ambientLight = new THREE.AmbientLight(0x94a3b8, 0.16);
+            scene.add(ambientLight);
+
+            const sunPointLight = new THREE.PointLight(0xfff7ed, 2.9, 260, 0.8);
+            sunPointLight.position.set(0, 1.2, 0);
+            scene.add(sunPointLight);
+
+            const rimFillLight = new THREE.DirectionalLight(0x64748b, 0.14);
+            rimFillLight.position.set(0, 45, 25);
+            scene.add(rimFillLight);
+
+            createStarfield();
+            buildCentralSunAndBase();
+            buildTellurionMechanism();
+            buildSolarSystemPlanets();
+            loadSatelliteTextures();
+            setupInteractionEvents();
+            updateSimulationPositions(dayOfYear);
+            updateUIForDay(dayOfYear, true);
+            selectBody('earth');
+        }
+
+        // HD NASA Uydu Dokularını Asenkron Yükle (Çevrimdışıysa prosedürel dokular sorunsuz kalır)
+        function loadSatelliteTextures() {
+            const loader = new THREE.TextureLoader();
+            loader.setCrossOrigin('anonymous');
+            const pill = document.getElementById('texture-status-pill');
+
+            loader.load(TEXTURE_URLS.earthDay, (dayTex) => {
+                dayTex.encoding = THREE.sRGBEncoding;
+                dayTex.anisotropy = 8;
+                earthMesh.material.map = dayTex;
+                earthMesh.material.needsUpdate = true;
+                if (pill) {
+                    pill.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>NASA 2K';
+                    pill.className = 'hidden sm:inline-flex items-center gap-1 text-[10px] font-mono-num uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-400/25';
+                }
+            }, undefined, () => {
+                if (pill) pill.classList.add('hidden');
+            });
+
+            loader.load(TEXTURE_URLS.earthNormal, (normTex) => {
+                earthMesh.material.normalMap = normTex;
+                earthMesh.material.normalScale.set(0.65, 0.65);
+                earthMesh.material.needsUpdate = true;
+            });
+
+            loader.load(TEXTURE_URLS.earthSpecular, (specTex) => {
+                earthMesh.material.specularMap = specTex;
+                earthMesh.material.specular = new THREE.Color(0x38bdf8);
+                earthMesh.material.shininess = 28;
+                earthMesh.material.needsUpdate = true;
+            });
+
+            loader.load(TEXTURE_URLS.earthClouds, (cloudTex) => {
+                cloudTex.encoding = THREE.sRGBEncoding;
+                earthCloudsMesh.material.map = cloudTex;
+                earthCloudsMesh.material.opacity = 0.85;
+                earthCloudsMesh.material.needsUpdate = true;
+                earthCloudsMesh.visible = showClouds;
+            });
+
+            loader.load(TEXTURE_URLS.moon, (moonTex) => {
+                moonTex.encoding = THREE.sRGBEncoding;
+                moonTex.anisotropy = 4;
+                moonMesh.material.map = moonTex;
+                moonMesh.material.bumpMap = moonTex;
+                moonMesh.material.bumpScale = 0.025;
+                moonMesh.material.needsUpdate = true;
+            });
+        }
+
+        // Gerçekçi Spektral Renkli Yıldız Uzayı
+        function createStarfield() {
+            const starGeo = new THREE.BufferGeometry();
+            const count = 3000;
+            const positions = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3);
+            const starColors = [
+                new THREE.Color('#bfdbfe'), // O/B mavi-beyaz
+                new THREE.Color('#f8fafc'), // A/F beyaz
+                new THREE.Color('#fef3c7'), // G sarı-beyaz
+                new THREE.Color('#fed7aa')  // K/M turuncu-sarı
+            ];
+
+            for (let i = 0; i < count; i++) {
+                const r = 110 + Math.random() * 240;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+                positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+                positions[i * 3 + 2] = r * Math.cos(phi);
+
+                const col = starColors[i % starColors.length];
+                const brightness = 0.55 + Math.random() * 0.45;
+                colors[i * 3] = col.r * brightness;
+                colors[i * 3 + 1] = col.g * brightness;
+                colors[i * 3 + 2] = col.b * brightness;
+            }
+            starGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            starGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            const starMat = new THREE.PointsMaterial({
+                size: 0.55,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.88,
+                sizeAttenuation: true
+            });
+            scene.add(new THREE.Points(starGeo, starMat));
+        }
+
+        // Merkez Güneş + Müze Kalitesinde Pirinç & Anodize Alüminyum Kaide
+        function buildCentralSunAndBase() {
+            tellurionGroup = new THREE.Group();
+            scene.add(tellurionGroup);
+
+            const anodizedMat = new THREE.MeshStandardMaterial({
+                color: 0x0f172a,
+                roughness: 0.32,
+                metalness: 0.65
+            });
+            const brassMat = new THREE.MeshStandardMaterial({
+                color: 0xd4a656,
+                roughness: 0.25,
+                metalness: 0.88
+            });
+
+            // 1. Anodize Kaide + Pirinç Bilezik
+            const baseMesh = new THREE.Mesh(new THREE.CylinderGeometry(5.3, 6.4, 2.0, 64), anodizedMat);
+            baseMesh.position.y = -5.7;
+            tellurionGroup.add(baseMesh);
+
+            const baseRim = new THREE.Mesh(new THREE.TorusGeometry(6.35, 0.09, 16, 72), brassMat);
+            baseRim.rotation.x = Math.PI / 2;
+            baseRim.position.y = -6.62;
+            tellurionGroup.add(baseRim);
+
+            // 2. Takvim ve Mevsim Diski
+            const calGeo = new THREE.CylinderGeometry(6.8, 6.9, 0.35, 72);
+            const calMaterials = [
+                brassMat,
+                new THREE.MeshBasicMaterial({ map: createCalendarDialTexture() }),
+                anodizedMat
+            ];
+            calendarDiscMesh = new THREE.Mesh(calGeo, calMaterials);
+            calendarDiscMesh.position.y = -4.2;
+            tellurionGroup.add(calendarDiscMesh);
+
+            // 3. Fırçalanmış Metal Merkez Direk
+            const rodGeo = new THREE.CylinderGeometry(0.3, 0.34, 4.2, 32);
+            const centerPost = new THREE.Mesh(rodGeo, brassMat);
+            centerPost.position.y = -2.1;
+            tellurionGroup.add(centerPost);
+
+            // 4. Fotosfer Dokulu Parlak Güneş + Korona Halesi
+            const sunGeo = new THREE.SphereGeometry(PLANET_DATA.sun.radius, 64, 64);
+            const sunTex = createSunPhotosphereTexture();
+            const sunMat = new THREE.MeshBasicMaterial({ map: sunTex });
+            sunMesh = new THREE.Mesh(sunGeo, sunMat);
+            sunMesh.position.y = 1.2;
+            sunMesh.userData.bodyId = 'sun';
+            scene.add(sunMesh);
+            clickableMeshes.push(sunMesh);
+
+            const coronaMat = new THREE.SpriteMaterial({
+                map: createCoronaGlowTexture(),
+                color: 0xfdba74,
+                transparent: true,
+                opacity: 0.85,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+            sunCoronaSprite = new THREE.Sprite(coronaMat);
+            sunCoronaSprite.scale.set(13.5, 13.5, 1);
+            sunCoronaSprite.position.set(0, 1.2, 0);
+            scene.add(sunCoronaSprite);
+
+            createLabel('sun', 'Güneş · 3.5x', sunMesh, 4.1, '#f59e0b');
+        }
+
+        function buildTellurionMechanism() {
+            mainArmGroup = new THREE.Group();
+            scene.add(mainArmGroup);
+
+            const anodizedMat = new THREE.MeshStandardMaterial({ color: 0x162033, roughness: 0.35, metalness: 0.65 });
+            const brassMat = new THREE.MeshStandardMaterial({ color: 0xd4a656, roughness: 0.24, metalness: 0.88 });
+            const rubyPointerMat = new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0x7f1d1d, emissiveIntensity: 0.35, roughness: 0.25, metalness: 0.4 });
+
+            // Güneş Odak Merceği
+            const lensGeo = new THREE.CylinderGeometry(0.38, 0.46, 0.36, 24);
+            lensGeo.rotateZ(Math.PI / 2);
+            const lensMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, emissive: 0xf59e0b, emissiveIntensity: 1.0 });
+            sunLensHousing = new THREE.Mesh(lensGeo, lensMat);
+            sunLensHousing.position.set(3.42, 1.2, 0);
+            mainArmGroup.add(sunLensHousing);
+
+            // Güneş'ten Dünya'ya Yarı Saydam Işık Huzmesi
+            const coneGeo = new THREE.ConeGeometry(1.9, 11.1, 36, 1, true);
+            coneGeo.rotateZ(Math.PI / 2);
+            const coneMat = new THREE.MeshBasicMaterial({
+                color: 0xfde68a,
+                transparent: true,
+                opacity: 0.11,
+                side: THREE.DoubleSide,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+            lightBeamCone = new THREE.Mesh(coneGeo, coneMat);
+            lightBeamCone.position.set(8.95, 1.2, 0);
+            mainArmGroup.add(lightBeamCone);
+
+            // Takvim İbresi & Tutamak
+            const pointerArm = new THREE.Mesh(new THREE.BoxGeometry(6.8, 0.14, 0.18), rubyPointerMat);
+            pointerArm.position.set(3.4, -3.94, 0);
+            mainArmGroup.add(pointerArm);
+
+            const handleMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 1.1, 20), rubyPointerMat);
+            handleMesh.position.set(6.8, -3.55, 0);
+            mainArmGroup.add(handleMesh);
+
+            // Ana Dişli Köprüsü
+            const gearBar = new THREE.Mesh(new THREE.BoxGeometry(14.5, 0.42, 1.65), anodizedMat);
+            gearBar.position.set(7.25, -3.5, 0);
+            mainArmGroup.add(gearBar);
+
+            // Ara Dişliler (Pirinç göbekli)
+            [4.8, 9.2].forEach(xPos => {
+                const gear = new THREE.Mesh(new THREE.CylinderGeometry(1.85, 1.85, 0.46, 36), anodizedMat);
+                gear.position.set(xPos, -3.12, 0);
+                mainArmGroup.add(gear);
+
+                const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.54, 24), brassMat);
+                hub.position.set(xPos, -3.12, 0);
+                mainArmGroup.add(hub);
+            });
+
+            // DÜNYA VE AY SİSTEMİ GRUBU (Mesafe = 14.5 birim)
+            earthSystemGroup = new THREE.Group();
+            earthSystemGroup.position.set(14.5, 0, 0);
+            mainArmGroup.add(earthSystemGroup);
+
+            // Ay Evreleri Diski
+            const moonDiscGeo = new THREE.CylinderGeometry(3.15, 3.25, 0.26, 56);
+            const moonDiscMats = [
+                brassMat,
+                new THREE.MeshBasicMaterial({ map: createMoonPhaseDialTexture() }),
+                anodizedMat
+            ];
+            moonPhaseDiscMesh = new THREE.Mesh(moonDiscGeo, moonDiscMats);
+            moonPhaseDiscMesh.position.y = -2.8;
+            earthSystemGroup.add(moonPhaseDiscMesh);
+
+            // Dünya'nın 23.5° Eksen Eğikliği Grubu (21 Mart ekinoks, 21 Haz yaz gündönümü)
+            earthTiltGroup = new THREE.Group();
+            earthTiltGroup.position.y = 1.2;
+            earthTiltGroup.rotation.x = THREE.MathUtils.degToRad(PLANET_DATA.earth.tilt);
+            earthSystemGroup.add(earthTiltGroup);
+
+            // Pirinç Eksen Çubuğu
+            const axisRod = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.045, 0.045, PLANET_DATA.earth.radius * 2.8, 16),
+                brassMat
+            );
+            earthTiltGroup.add(axisRod);
+
+            // Gerçekçi Dünya Küresi (Phong + Normal + Specular okyanus parlaması + NASA 2K doku)
+            const earthGeo = new THREE.SphereGeometry(PLANET_DATA.earth.radius, 64, 64);
+            const earthMat = new THREE.MeshPhongMaterial({
+                map: createEarthFallbackTexture(),
+                specular: new THREE.Color(0x1e3a5f),
+                shininess: 18
+            });
+            earthMesh = new THREE.Mesh(earthGeo, earthMat);
+            earthMesh.userData.bodyId = 'earth';
+            earthTiltGroup.add(earthMesh);
+            clickableMeshes.push(earthMesh);
+
+            // Dinamik Bulut Katmanı
+            const cloudsGeo = new THREE.SphereGeometry(PLANET_DATA.earth.radius * 1.016, 48, 48);
+            const cloudsMat = new THREE.MeshLambertMaterial({
+                transparent: true,
+                opacity: 0.0,
+                depthWrite: false
+            });
+            earthCloudsMesh = new THREE.Mesh(cloudsGeo, cloudsMat);
+            earthCloudsMesh.visible = false;
+            earthTiltGroup.add(earthCloudsMesh);
+
+            // Atmosferik Rayleigh Mavi Hale (Fresnel Shader)
+            const atmoGeo = new THREE.SphereGeometry(PLANET_DATA.earth.radius * 1.075, 48, 48);
+            earthAtmoMesh = new THREE.Mesh(atmoGeo, createEarthAtmosphereMaterial());
+            earthTiltGroup.add(earthAtmoMesh);
+
+            createLabel('earth', 'Dünya · 1.0x', earthTiltGroup, 1.85, '#38bdf8');
+
+            // Ay Yörünge Grubu ve Pirinç Taşıyıcı Tel
+            moonOrbitGroup = new THREE.Group();
+            moonOrbitGroup.position.y = -2.5;
+            earthSystemGroup.add(moonOrbitGroup);
+
+            const wireHoriz = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 3.6, 12), brassMat);
+            wireHoriz.rotation.z = Math.PI / 2;
+            wireHoriz.position.set(1.8, 0.2, 0);
+            moonOrbitGroup.add(wireHoriz);
+
+            moonWireVert = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 3.5, 12), brassMat);
+            moonWireVert.position.set(3.6, 1.95, 0);
+            moonOrbitGroup.add(moonWireVert);
+
+            // Gerçekçi Ay Küresi (NASA Moon 1K + Bump krater derinliği)
+            const moonGeo = new THREE.SphereGeometry(PLANET_DATA.moon.radius, 36, 36);
+            const moonMat = new THREE.MeshStandardMaterial({
+                map: createDetailedPlanetTexture('moon'),
+                roughness: 0.88,
+                metalness: 0.02
+            });
+            moonMesh = new THREE.Mesh(moonGeo, moonMat);
+            moonMesh.position.set(3.6, 3.7, 0);
+            moonMesh.userData.bodyId = 'moon';
+            moonOrbitGroup.add(moonMesh);
+            clickableMeshes.push(moonMesh);
+
+            createLabel('moon', 'Ay · 0.27x', moonMesh, 0.72, '#cbd5e1');
+        }
+
+        function buildSolarSystemPlanets() {
+            solarSystemGroup = new THREE.Group();
+            solarSystemGroup.visible = false;
+            scene.add(solarSystemGroup);
+
+            const earthOrbitLine = createOrbitRing(14.5, 0x38bdf8, 0.28);
+            earthOrbitLine.position.y = 1.2;
+            scene.add(earthOrbitLine);
+
+            const planetKeys = ['mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune'];
+
+            planetKeys.forEach(key => {
+                const p = PLANET_DATA[key];
+
+                const orbitRing = createOrbitRing(p.distance, p.color, 0.22);
+                orbitRing.position.y = 1.2;
+                solarSystemGroup.add(orbitRing);
+
+                const orbitPivot = new THREE.Group();
+                orbitPivot.position.y = 1.2;
+                orbitPivot.userData = { initialAngle: Math.random() * Math.PI * 2 };
+                solarSystemGroup.add(orbitPivot);
+
+                const counterRotateGroup = new THREE.Group();
+                counterRotateGroup.position.set(p.distance, 0, 0);
+                orbitPivot.add(counterRotateGroup);
+
+                const tiltGroup = new THREE.Group();
+                tiltGroup.rotation.x = THREE.MathUtils.degToRad(p.tilt);
+                counterRotateGroup.add(tiltGroup);
+
+                const axisGeo = new THREE.CylinderGeometry(0.032, 0.032, p.radius * 2.7, 8);
+                const axisMat = new THREE.MeshBasicMaterial({ color: 0xd4a656, transparent: true, opacity: 0.45 });
+                tiltGroup.add(new THREE.Mesh(axisGeo, axisMat));
+
+                const geo = new THREE.SphereGeometry(p.radius, 40, 40);
+                const mat = new THREE.MeshStandardMaterial({
+                    map: createDetailedPlanetTexture(key),
+                    roughness: 0.65,
+                    metalness: 0.04
+                });
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.userData.bodyId = key;
+                tiltGroup.add(mesh);
+                clickableMeshes.push(mesh);
+
+                if (p.hasRings) {
+                    const innerR = p.radius * 1.32;
+                    const outerR = p.radius * 2.38;
+                    const ringGeo = new THREE.RingGeometry(innerR, outerR, 72);
+                    // Radyal UV haritalama (Cassini bölünmesi için)
+                    const pos = ringGeo.attributes.position;
+                    const uv = ringGeo.attributes.uv;
+                    for (let i = 0; i < pos.count; i++) {
+                        const x = pos.getX(i);
+                        const y = pos.getY(i);
+                        const r = Math.hypot(x, y);
+                        uv.setXY(i, (r - innerR) / (outerR - innerR), 0.5);
+                    }
+                    ringGeo.rotateX(Math.PI / 2);
+                    const ringMat = new THREE.MeshStandardMaterial({
+                        map: createSaturnRingTexture(),
+                        side: THREE.DoubleSide,
+                        transparent: true,
+                        roughness: 0.75,
+                        depthWrite: false
+                    });
+                    mesh.add(new THREE.Mesh(ringGeo, ringMat));
+                }
+
+                planetObjects[key] = { data: p, orbitPivot, counterRotateGroup, tiltGroup, mesh };
+                createLabel(key, `${p.name} · ${p.badge.split(' ')[0]}`, tiltGroup, p.radius + 0.9, p.color);
+            });
+        }
+
+        function createOrbitRing(radius, colorHex, opacity) {
+            const curve = new THREE.EllipseCurve(0, 0, radius, radius, 0, 2 * Math.PI, false, 0);
+            const points = curve.getPoints(128);
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            geometry.rotateX(Math.PI / 2);
+            const material = new THREE.LineBasicMaterial({ color: colorHex, transparent: true, opacity });
+            return new THREE.LineLoop(geometry, material);
+        }
+
+        function createLabel(id, text, targetObj, yOffset, dotColor = '#f8fafc') {
+            const container = document.getElementById('labels-container');
+            const div = document.createElement('div');
+            div.className = 'planet-label px-2.5 py-1 rounded-full text-[11px] font-medium text-slate-100 shadow-lg whitespace-nowrap flex items-center gap-1.5';
+            div.innerHTML = `<span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:${dotColor}"></span><span>${text}</span>`;
+            div.onclick = (e) => {
+                e.stopPropagation();
+                selectBody(id);
+            };
+            container.appendChild(div);
+            labelElements[id] = { element: div, targetObj, yOffset };
+        }
+
+        function updateLabelsPosition() {
+            const widthHalf = window.innerWidth / 2;
+            const heightHalf = window.innerHeight / 2;
+
+            Object.keys(labelElements).forEach(id => {
+                const item = labelElements[id];
+                const isSolarPlanet = SOLAR_PLANET_IDS.has(id);
+
+                if (!showLabels || (currentMode === 'tellurion' && isSolarPlanet)) {
+                    item.element.style.display = 'none';
+                    return;
+                }
+
+                item.targetObj.getWorldPosition(tempVec);
+                tempVec.y += item.yOffset * planetScaleMultiplier;
+                tempVec.project(camera);
+
+                if (tempVec.z > 1) {
+                    item.element.style.display = 'none';
+                } else {
+                    item.element.style.display = 'flex';
+                    const x = (tempVec.x * widthHalf) + widthHalf;
+                    const y = -(tempVec.y * heightHalf) + heightHalf;
+                    item.element.style.left = `${x}px`;
+                    item.element.style.top = `${y}px`;
+                }
+            });
+        }
+
+        function updateSimulationPositions(day) {
+            const yearFraction = ((day % 365.25) + 365.25) % 365.25 / 365.25;
+            const orbitAngle = yearFraction * Math.PI * 2;
+
+            mainArmGroup.rotation.y = orbitAngle;
+            earthSystemGroup.rotation.y = -orbitAngle;
+
+            earthMesh.rotation.y = useRealSpin ? day * Math.PI * 2 : day * 0.85;
+            if (earthCloudsMesh) {
+                earthCloudsMesh.rotation.y = earthMesh.rotation.y * 1.12;
+            }
+
+            // Ay kavuşum + yıldızıl + 5.145° eğiklik
+            const lunarSynodicAngle = (day / SYNODIC_MONTH) * Math.PI * 2;
+            moonOrbitGroup.rotation.y = orbitAngle + Math.PI + lunarSynodicAngle;
+
+            const draconicAngle = (day / DRACONIC_MONTH) * Math.PI * 2;
+            const moonYOffset = Math.sin(draconicAngle) * 3.6 * Math.sin(MOON_INCLINATION_RAD);
+            moonMesh.position.y = 3.7 + moonYOffset;
+            if (moonWireVert) {
+                const wireLen = 3.5 + moonYOffset;
+                moonWireVert.scale.y = wireLen / 3.5;
+                moonWireVert.position.y = 0.2 + wireLen / 2;
+            }
+
+            sunMesh.rotation.y = day * 0.06;
+
+            Object.keys(planetObjects).forEach(key => {
+                const pObj = planetObjects[key];
+                const pAngle = pObj.orbitPivot.userData.initialAngle + (orbitAngle * pObj.data.orbitSpeed);
+                pObj.orbitPivot.rotation.y = pAngle;
+                pObj.counterRotateGroup.rotation.y = -pAngle;
+                pObj.mesh.rotation.y = day * 0.1 * pObj.data.rotSpeed;
+            });
+        }
+
+        /* ==========================================
+         * 4. EFEMERİS, SVG GÜNEŞ YAYI VE AY EVRESİ
+         * ========================================== */
+        const CALENDAR_MONTHS = [
+            { name: 'Mart', days: 31 }, { name: 'Nisan', days: 30 }, { name: 'Mayıs', days: 31 },
+            { name: 'Haziran', days: 30 }, { name: 'Temmuz', days: 31 }, { name: 'Ağustos', days: 31 },
+            { name: 'Eylül', days: 30 }, { name: 'Ekim', days: 31 }, { name: 'Kasım', days: 30 },
+            { name: 'Aralık', days: 31 }, { name: 'Ocak', days: 31 }, { name: 'Şubat', days: 28 }
+        ];
+
+        const MOON_PHASES = [
+            'Yeni Ay', 'Hilal (Büyüyen)', 'İlk Dördün', 'Şişkin Ay',
+            'Dolunay', 'Şişkin Ay (Küçülen)', 'Son Dördün', 'Hilal (Son)'
+        ];
+
+        // Geometrik SVG Ay Evresi Çizici (lunarAge: 0=Yeni Ay, 0.5=Dolunay)
+        function renderMoonPhaseSVG(lunarAge) {
+            const pathEl = document.getElementById('moon-lit-path');
+            const illumEl = document.getElementById('moon-illum-text');
+            if (!pathEl) return;
+
+            const phaseAngle = lunarAge * Math.PI * 2;
+            const illumPct = Math.round(((1 - Math.cos(phaseAngle)) / 2) * 100);
+            if (illumEl) illumEl.textContent = `%${illumPct}`;
+
+            const r = 17, cx = 20, cy = 20;
+            if (illumPct <= 1) {
+                pathEl.setAttribute('d', '');
+                return;
+            }
+            if (illumPct >= 99) {
+                pathEl.setAttribute('d', `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx} ${cy + r} A ${r} ${r} 0 1 1 ${cx} ${cy - r} Z`);
+                return;
+            }
+
+            const waxing = lunarAge < 0.5;
+            const rx = Math.abs(Math.cos(phaseAngle)) * r;
+            const outerSweep = waxing ? 1 : 0;
+            const innerSweep = waxing ? (lunarAge < 0.25 ? 0 : 1) : (lunarAge < 0.75 ? 0 : 1);
+            const d = `M ${cx} ${cy - r} A ${r} ${r} 0 0 ${outerSweep} ${cx} ${cy + r} A ${rx.toFixed(2)} ${r} 0 0 ${innerSweep} ${cx} ${cy - r} Z`;
+            pathEl.setAttribute('d', d);
+        }
+
+        function updateCityMetrics() {
+            const selectEl = document.getElementById('city-select');
+            if (!selectEl) return;
+            const latDeg = parseFloat(selectEl.value);
+            const latRad = THREE.MathUtils.degToRad(latDeg);
+
+            const declDeg = 23.44 * Math.sin((dayOfYear / 365.25) * Math.PI * 2);
+            const declRad = THREE.MathUtils.degToRad(declDeg);
+
+            const declEl = document.getElementById('solar-decl-text');
+            if (declEl) declEl.textContent = `${declDeg >= 0 ? '+' : ''}${declDeg.toFixed(1)}°`;
+
+            const noonAlt = Math.max(0, 90 - Math.abs(latDeg - declDeg));
+            document.getElementById('city-noon-angle-text').textContent = `${noonAlt.toFixed(1)}°`;
+
+            const cosH0 = -Math.tan(latRad) * Math.tan(declRad);
+            let daylightHours = 12;
+            let daylightText;
+            if (cosH0 <= -1) {
+                daylightHours = 24;
+                daylightText = '24 sa (Kutup)';
+            } else if (cosH0 >= 1) {
+                daylightHours = 0;
+                daylightText = '0 sa (Kutup)';
+            } else {
+                daylightHours = (2 / 15) * THREE.MathUtils.radToDeg(Math.acos(cosH0));
+                const hrs = Math.floor(daylightHours);
+                const mins = Math.round((daylightHours - hrs) * 60);
+                daylightText = `${hrs} sa ${String(mins).padStart(2, '0')} dk`;
+            }
+            document.getElementById('city-daylight-text').textContent = daylightText;
+
+            // Canlı Güneş Yayı SVG Güncelleme
+            const peakY = 46 - (noonAlt / 90) * 38;
+            const ctrlY = peakY * 2 - 48; // Quadratic Bezier tepe noktası = peakY
+            const halfSpan = Math.max(10, Math.min(44, (daylightHours / 24) * 44 + 14));
+            const x1 = (55 - halfSpan).toFixed(1);
+            const x2 = (55 + halfSpan).toFixed(1);
+            const arcD = `M ${x1} 48 Q 55 ${ctrlY.toFixed(1)} ${x2} 48`;
+            const arcPath = document.getElementById('solar-arc-path');
+            const arcFill = document.getElementById('solar-arc-fill');
+            const arcSun = document.getElementById('solar-arc-sun');
+            if (arcPath && arcFill && arcSun) {
+                arcPath.setAttribute('d', arcD);
+                arcFill.setAttribute('d', `${arcD} Z`);
+                arcSun.setAttribute('cy', peakY.toFixed(1));
+                arcSun.setAttribute('opacity', noonAlt > 0.5 ? '1' : '0.2');
+            }
+        }
+
+        function updateUIForDay(day, force = false) {
+            const cleanDay = ((day % 365) + 365) % 365;
+            document.getElementById('manual-crank-slider').value = cleanDay;
+
+            const intDay = Math.floor(cleanDay);
+            if (force || intDay !== lastUIIntDay) {
+                lastUIIntDay = intDay;
+                document.getElementById('day-counter').textContent = `GÜN ${String(intDay + 1).padStart(3, '0')} / 365`;
+
+                let d = intDay + 21;
+                let mIdx = 0;
+                while (d > CALENDAR_MONTHS[mIdx].days) {
+                    d -= CALENDAR_MONTHS[mIdx].days;
+                    mIdx = (mIdx + 1) % 12;
+                }
+                document.getElementById('current-month-text').textContent = `${d} ${CALENDAR_MONTHS[mIdx].name}`;
+
+                const seasonEl = document.getElementById('current-season-text');
+                if (cleanDay < 92) {
+                    seasonEl.textContent = 'İlkbahar';
+                    seasonEl.className = 'text-xs font-bold text-emerald-400 mt-0.5 truncate';
+                } else if (cleanDay < 186) {
+                    seasonEl.textContent = 'Yaz';
+                    seasonEl.className = 'text-xs font-bold text-amber-400 mt-0.5 truncate';
+                } else if (cleanDay < 275) {
+                    seasonEl.textContent = 'Sonbahar';
+                    seasonEl.className = 'text-xs font-bold text-orange-400 mt-0.5 truncate';
+                } else {
+                    seasonEl.textContent = 'Kış';
+                    seasonEl.className = 'text-xs font-bold text-sky-400 mt-0.5 truncate';
+                }
+
+                updateCityMetrics();
+            }
+
+            // Ay Evresi SVG & Metni
+            const lunarAge = (((day % SYNODIC_MONTH) + SYNODIC_MONTH) % SYNODIC_MONTH) / SYNODIC_MONTH;
+            const phaseKey = `${Math.round(lunarAge * 100)}`;
+            if (force || phaseKey !== lastMoonPhaseKey) {
+                lastMoonPhaseKey = phaseKey;
+                const phaseIdx = Math.floor((lunarAge + 1 / 16) * 8) % 8;
+                document.getElementById('moon-phase-text').textContent = MOON_PHASES[phaseIdx];
+                renderMoonPhaseSVG(lunarAge);
+            }
+
+            // Tutulma Konumu Algılama
+            const draconicAngle = (day / DRACONIC_MONTH) * Math.PI * 2;
+            const nearNode = Math.abs(Math.sin(draconicAngle)) < 0.28;
+            const nearNewMoon = lunarAge < 0.035 || lunarAge > 0.965;
+            const nearFullMoon = Math.abs(lunarAge - 0.5) < 0.035;
+            const eclipseKey = nearNode && nearNewMoon ? 'solar' : (nearNode && nearFullMoon ? 'lunar' : '');
+
+            if (force || eclipseKey !== lastEclipseKey) {
+                lastEclipseKey = eclipseKey;
+                const alertEl = document.getElementById('eclipse-alert');
+                if (eclipseKey === 'solar') {
+                    alertEl.textContent = 'Güneş Tutulması Konumu · Ay düğüm noktasında';
+                    alertEl.className = 'mt-2 text-[11px] font-semibold px-2.5 py-1.5 rounded-xl border text-center bg-amber-500/15 border-amber-400/40 text-amber-200';
+                } else if (eclipseKey === 'lunar') {
+                    alertEl.textContent = 'Ay Tutulması Konumu · Ay Dünya gölgesinde';
+                    alertEl.className = 'mt-2 text-[11px] font-semibold px-2.5 py-1.5 rounded-xl border text-center bg-rose-500/15 border-rose-400/40 text-rose-200';
+                } else {
+                    alertEl.className = 'hidden';
+                }
+            }
+        }
+
+        /* ==========================================
+         * 5. ETKİLEŞİM, KAMERA VE KONTROLLER
+         * ========================================== */
+        function selectBody(id) {
+            selectedBodyId = id;
+            const info = PLANET_DATA[id];
+            if (!info) return;
+
+            const dot = document.getElementById('selected-planet-dot');
+            dot.style.backgroundColor = info.color;
+            dot.style.boxShadow = `0 0 10px ${info.color}`;
+            document.getElementById('selected-planet-name').textContent = info.name;
+            document.getElementById('selected-planet-badge').textContent = info.badge;
+            document.getElementById('selected-planet-desc').textContent = info.desc;
+            document.getElementById('selected-planet-day').textContent = info.dayText;
+            document.getElementById('selected-planet-year').textContent = info.yearText;
+            document.getElementById('selected-planet-real-scale').textContent = info.realScaleText;
+            document.getElementById('selected-planet-model-scale').textContent = info.modelScaleText;
+
+            Object.keys(labelElements).forEach(k => {
+                labelElements[k].element.classList.toggle('is-selected', k === id);
+            });
+        }
+
+        function switchMode(mode) {
+            currentMode = mode;
+            const btnTellurion = document.getElementById('btn-mode-tellurion');
+            const btnSolar = document.getElementById('btn-mode-solar');
+            const activeCls = 'px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 bg-amber-500 text-slate-950 shadow-md shadow-amber-500/25';
+            const idleCls = 'px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 text-slate-300 hover:text-white hover:bg-white/5';
+
+            if (mode === 'tellurion') {
+                solarSystemGroup.visible = false;
+                tellurionGroup.visible = true;
+                lightBeamCone.visible = showLightBeam;
+                camSpherical.radius = 26;
+                camSpherical.phi = Math.PI / 3.1;
+                desiredCamTarget.set(4.5, 0.2, 0);
+
+                btnTellurion.className = activeCls;
+                btnSolar.className = idleCls;
+                btnTellurion.setAttribute('aria-pressed', 'true');
+                btnSolar.setAttribute('aria-pressed', 'false');
+                selectBody('earth');
+            } else {
+                solarSystemGroup.visible = true;
+                tellurionGroup.visible = true;
+                camSpherical.radius = 65;
+                camSpherical.phi = Math.PI / 3.2;
+                desiredCamTarget.set(0, 0, 0);
+
+                btnSolar.className = activeCls;
+                btnTellurion.className = idleCls;
+                btnSolar.setAttribute('aria-pressed', 'true');
+                btnTellurion.setAttribute('aria-pressed', 'false');
+                selectBody('jupiter');
+            }
+        }
+
+        function togglePlay() {
+            isPlaying = !isPlaying;
+            document.getElementById('play-icon').innerHTML = isPlaying ? ICON_PAUSE : ICON_PLAY;
+            document.getElementById('play-text').textContent = isPlaying ? 'Duraklat' : 'Oynat';
+        }
+
+        function jumpToDay(targetDay) {
+            if (isPlaying) togglePlay();
+            dayOfYear = targetDay;
+            updateSimulationPositions(dayOfYear);
+            updateUIForDay(dayOfYear, true);
+        }
+
+        function stepDay(days) {
+            dayOfYear = ((dayOfYear + days) % 365.25 + 365.25) % 365.25;
+            updateSimulationPositions(dayOfYear);
+            updateUIForDay(dayOfYear, true);
+        }
+
+        function updateSpeed(val) {
+            simSpeed = parseFloat(val);
+            document.getElementById('speed-label').textContent = `${simSpeed.toFixed(1)}x`;
+        }
+
+        function updatePlanetScale(val) {
+            planetScaleMultiplier = parseFloat(val);
+            document.getElementById('scale-label').textContent = `${planetScaleMultiplier.toFixed(1)}x`;
+
+            earthMesh.scale.setScalar(planetScaleMultiplier);
+            if (earthCloudsMesh) earthCloudsMesh.scale.setScalar(planetScaleMultiplier);
+            if (earthAtmoMesh) earthAtmoMesh.scale.setScalar(planetScaleMultiplier);
+            moonMesh.scale.setScalar(planetScaleMultiplier);
+            Object.values(planetObjects).forEach(p => {
+                p.mesh.scale.setScalar(planetScaleMultiplier);
+            });
+        }
+
+        function toggleLabels(checked) { showLabels = checked; }
+
+        function toggleLightBeam(checked) {
+            showLightBeam = checked;
+            if (lightBeamCone) lightBeamCone.visible = checked;
+        }
+
+        function toggleClouds(checked) {
+            showClouds = checked;
+            if (earthCloudsMesh && earthCloudsMesh.material.map) earthCloudsMesh.visible = checked;
+            if (earthAtmoMesh) earthAtmoMesh.visible = checked;
+        }
+
+        function toggleRealSpin(checked) {
+            useRealSpin = checked;
+            updateSimulationPositions(dayOfYear);
+        }
+
+        function toggleSidebar() {
+            sidebarCollapsed = !sidebarCollapsed;
+            const panels = document.getElementById('sidebar-panels');
+            const btn = document.getElementById('btn-toggle-sidebar');
+            const icon = document.getElementById('sidebar-toggle-icon');
+            const text = document.getElementById('sidebar-toggle-text');
+            panels.classList.toggle('hidden', sidebarCollapsed);
+            btn.setAttribute('aria-expanded', String(!sidebarCollapsed));
+            icon.style.transform = sidebarCollapsed ? 'rotate(180deg)' : 'rotate(0deg)';
+            text.textContent = sidebarCollapsed ? 'Telemetriyi Göster' : 'Telemetriyi Gizle';
+        }
+
+        function focusCamera(targetType) {
+            if (targetType === 'sun') {
+                desiredCamTarget.set(0, 0.8, 0);
+                camSpherical.radius = currentMode === 'solar' ? 55 : 25;
+                camSpherical.phi = Math.PI / 3;
+                selectBody('sun');
+            } else if (targetType === 'earth') {
+                const earthPos = new THREE.Vector3();
+                earthTiltGroup.getWorldPosition(earthPos);
+                desiredCamTarget.copy(earthPos);
+                camSpherical.radius = 6.2;
+                camSpherical.phi = Math.PI / 2.35;
+                selectBody('earth');
+            } else if (targetType === 'top') {
+                desiredCamTarget.set(0, 0, 0);
+                camSpherical.phi = 0.12;
+                camSpherical.radius = currentMode === 'solar' ? 75 : 34;
+            }
+        }
+
+        function pickBodyAt(clientX, clientY) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            pointerNDC.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+            pointerNDC.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+            raycaster.setFromCamera(pointerNDC, camera);
+
+            const candidates = currentMode === 'solar'
+                ? clickableMeshes
+                : clickableMeshes.filter(m => !SOLAR_PLANET_IDS.has(m.userData.bodyId));
+
+            const hits = raycaster.intersectObjects(candidates, false);
+            if (hits.length > 0 && hits[0].object.userData.bodyId) {
+                selectBody(hits[0].object.userData.bodyId);
+            }
+        }
+
+        function setupInteractionEvents() {
+            const dom = renderer.domElement;
+
+            const crankSlider = document.getElementById('manual-crank-slider');
+            crankSlider.addEventListener('input', (e) => {
+                if (isPlaying) togglePlay();
+                dayOfYear = parseFloat(e.target.value);
+                updateSimulationPositions(dayOfYear);
+                updateUIForDay(dayOfYear, true);
+            });
+
+            dom.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                prevMouse = { x: e.clientX, y: e.clientY };
+                pointerDownPos = { x: e.clientX, y: e.clientY };
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const dx = e.clientX - prevMouse.x;
+                const dy = e.clientY - prevMouse.y;
+                prevMouse = { x: e.clientX, y: e.clientY };
+
+                camSpherical.theta -= dx * 0.007;
+                camSpherical.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.05, camSpherical.phi - dy * 0.007));
+            });
+
+            window.addEventListener('mouseup', (e) => {
+                if (isDragging) {
+                    const dist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
+                    if (dist < 6 && e.target === dom) pickBodyAt(e.clientX, e.clientY);
+                }
+                isDragging = false;
+            });
+
+            dom.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                camSpherical.radius = Math.max(3.6, Math.min(125, camSpherical.radius + e.deltaY * 0.025));
+            }, { passive: false });
+
+            dom.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    isDragging = true;
+                    prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                    pointerDownPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                } else if (e.touches.length === 2) {
+                    isDragging = false;
+                    pinchStartDist = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+                    pinchStartRadius = camSpherical.radius;
+                }
+            }, { passive: true });
+
+            dom.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 2 && pinchStartDist > 0) {
+                    e.preventDefault();
+                    const curDist = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+                    const scale = pinchStartDist / Math.max(curDist, 10);
+                    camSpherical.radius = Math.max(3.6, Math.min(125, pinchStartRadius * scale));
+                    return;
+                }
+                if (!isDragging || e.touches.length !== 1) return;
+                const dx = e.touches[0].clientX - prevMouse.x;
+                const dy = e.touches[0].clientY - prevMouse.y;
+                prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+
+                camSpherical.theta -= dx * 0.007;
+                camSpherical.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.05, camSpherical.phi - dy * 0.007));
+            }, { passive: false });
+
+            window.addEventListener('touchend', (e) => {
+                if (isDragging && e.changedTouches.length === 1) {
+                    const t = e.changedTouches[0];
+                    const dist = Math.hypot(t.clientX - pointerDownPos.x, t.clientY - pointerDownPos.y);
+                    if (dist < 10 && e.target === dom) pickBodyAt(t.clientX, t.clientY);
+                }
+                if (e.touches.length < 2) pinchStartDist = 0;
+                if (e.touches.length === 0) isDragging = false;
+            });
+
+            window.addEventListener('keydown', (e) => {
+                const tag = document.activeElement && document.activeElement.tagName;
+                if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    togglePlay();
+                } else if (e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    if (isPlaying) togglePlay();
+                    stepDay(e.shiftKey ? 15 : 1);
+                } else if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    if (isPlaying) togglePlay();
+                    stepDay(e.shiftKey ? -15 : -1);
+                } else if (e.key === '1') {
+                    switchMode('tellurion');
+                } else if (e.key === '2') {
+                    switchMode('solar');
+                }
+            });
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = Math.min(clock.getDelta(), 0.1);
+            const elapsed = clock.elapsedTime;
+
+            if (isPlaying) {
+                dayOfYear = (dayOfYear + delta * 10.8 * simSpeed) % 365.25;
+                updateSimulationPositions(dayOfYear);
+                updateUIForDay(dayOfYear);
+            }
+
+            // Hafif Güneş korona nabzı
+            if (sunCoronaSprite) {
+                const pulse = 13.4 + Math.sin(elapsed * 1.6) * 0.35;
+                sunCoronaSprite.scale.set(pulse, pulse, 1);
+            }
+
+            // Dünya yakın çekimindeyken kamerayı Dünya ile birlikte takip ettir
+            if (selectedBodyId === 'earth' && camSpherical.radius <= 14) {
+                earthTiltGroup.getWorldPosition(desiredCamTarget);
+            }
+
+            camTarget.lerp(desiredCamTarget, 0.08);
+            camera.position.x = camTarget.x + camSpherical.radius * Math.sin(camSpherical.phi) * Math.sin(camSpherical.theta);
+            camera.position.y = camTarget.y + camSpherical.radius * Math.cos(camSpherical.phi);
+            camera.position.z = camTarget.z + camSpherical.radius * Math.sin(camSpherical.phi) * Math.cos(camSpherical.theta);
+            camera.lookAt(camTarget);
+
+            updateLabelsPosition();
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function () {
+            initScene();
+            animate();
+        };
+    </script>
+</body>
+</html>
