@@ -147,7 +147,7 @@ export const PLANET_DATA: Record<BodyId, CelestialBodyData> = {
     semiMajorAxisAU: 1.0,
     eccentricity: 0.0167,
     inclinationDeg: 0.0,
-    orbitalPeriodDays: 365.256,
+    orbitalPeriodDays: 365.2422, // Tropikal yıl (ekinoks & gündönümü hizası)
     meanLongitudeJ2000Deg: 100.46,
     perihelionLonDeg: 102.94,
     rotSpeed: 12.0,

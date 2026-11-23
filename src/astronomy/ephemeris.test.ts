@@ -5,6 +5,8 @@ import {
   computePlanetPosition,
   computeSolarDeclinationDeg,
   dateToJulianDate,
+  getEquinoxDayOfYear,
+  getSeasonForLatitude,
   solveKepler,
 } from './ephemeris';
 
@@ -52,5 +54,17 @@ describe('Astronomy & Kepler Ephemeris Engine', () => {
     const lunar = computeLunarState(eclipseJD);
     expect(lunar.illuminationPct).toBeLessThan(3);
     expect(lunar.phaseName).toBe('Yeni Ay');
+  });
+
+  it('detects Total Lunar Eclipse (Blood Moon) on 3 Mar 2026 and opposite Southern Hemisphere seasons', () => {
+    const bloodMoonJD = dateToJulianDate(new Date('2026-03-03T11:33:00Z'));
+    const lunar = computeLunarState(bloodMoonJD);
+    expect(lunar.illuminationPct).toBeGreaterThan(97);
+    expect(lunar.eclipseType).toBe('lunar');
+
+    const juneDay = getEquinoxDayOfYear(dateToJulianDate(new Date('2026-06-21T12:00:00Z')));
+    expect(getSeasonForLatitude(juneDay, 41.0).name).toBe('Yaz');
+    expect(getSeasonForLatitude(juneDay, -33.9).name).toBe('Kış');
+    expect(getSeasonForLatitude(juneDay, -33.9).hemisphereLabel).toBe('Güney Y.K.');
   });
 });

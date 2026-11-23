@@ -41,6 +41,14 @@ function bootstrap(): void {
       store.set({ activeTourIndex: null });
     }
   });
+  // Register PWA Service Worker in production builds
+  if ('serviceWorker' in navigator && import.meta.env.PROD) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(() => {
+        // Ignore SW registration failure in restricted contexts
+      });
+    });
+  }
 }
 
 bootstrap();

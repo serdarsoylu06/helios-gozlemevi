@@ -13,7 +13,7 @@ import {
   dateToJulianDate,
   formatTurkishDate,
   getEquinoxDayOfYear,
-  getNorthernSeason,
+  getSeasonForLatitude,
   julianDateToDate,
 } from '../astronomy/ephemeris';
 import { AppState, store } from '../state/store';
@@ -96,10 +96,11 @@ export class ObservatoryUI {
               <span id="ui-earth-au" class="text-[10px] font-mono-num text-sky-300 bg-sky-500/10 border border-sky-400/20 px-2 py-0.5 rounded-md">1.000 AU</span>
             </div>
 
-            <!-- Gerçek Tarih Seçici + Şu An -->
-            <div class="flex items-center gap-1.5 mb-2">
-              <input id="ui-date-picker" type="date" aria-label="Simülasyon tarihi" class="flex-1 bg-slate-900/80 text-slate-100 text-[11px] font-mono-num rounded-lg px-2 py-1 border border-white/15 focus:outline-none focus:ring-1 focus:ring-amber-400" />
-              <button id="btn-live-now" class="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/30 text-[10px] font-semibold text-emerald-300 transition">Şu An</button>
+            <!-- Gerçek Tarih + Saat (UTC) Seçici + Şu An -->
+            <div class="flex items-center gap-1 mb-2">
+              <input id="ui-date-picker" type="date" aria-label="Simülasyon tarihi" class="flex-1 min-w-0 bg-slate-900/80 text-slate-100 text-[10px] font-mono-num rounded-lg px-1.5 py-1 border border-white/15 focus:outline-none focus:ring-1 focus:ring-amber-400" />
+              <input id="ui-time-picker" type="time" aria-label="Simülasyon saati (UTC)" class="w-[74px] bg-slate-900/80 text-slate-100 text-[10px] font-mono-num rounded-lg px-1.5 py-1 border border-white/15 focus:outline-none focus:ring-1 focus:ring-amber-400" />
+              <button id="btn-live-now" class="px-2 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/30 text-[10px] font-semibold text-emerald-300 transition shrink-0">Şu An</button>
             </div>
 
             <div class="grid grid-cols-3 gap-1.5 mb-2">
@@ -108,7 +109,7 @@ export class ObservatoryUI {
                 <div id="ui-date-text" class="text-[11px] font-bold text-white mt-0.5 truncate">21 Mart</div>
               </div>
               <div class="hud-subcard p-2 rounded-xl">
-                <div class="text-[9px] text-slate-400 uppercase">Kuzey Y.K.</div>
+                <div id="ui-hemisphere-label" class="text-[9px] text-slate-400 uppercase">Kuzey Y.K.</div>
                 <div id="ui-season-text" class="text-[11px] font-bold text-emerald-400 mt-0.5 truncate">İlkbahar</div>
               </div>
               <div class="hud-subcard p-2 rounded-xl">
@@ -117,23 +118,29 @@ export class ObservatoryUI {
               </div>
             </div>
 
-            <!-- Ekinoks, Gündönümü & Tutulma Atlama -->
-            <div class="grid grid-cols-5 gap-1 mb-2.5" role="group" aria-label="Önemli astronomik tarihler">
+            <!-- Ekinoks, Gündönümü, Güneş & Kanlı Ay Tutulması Atlama -->
+            <div class="grid grid-cols-3 gap-1 mb-2.5" role="group" aria-label="Önemli astronomik tarihler">
               <button data-jump="2026-03-20T15:00:00Z" class="jump-btn py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/25 border border-emerald-400/25 text-[9px] font-mono-num font-semibold text-emerald-300 transition">21 Mar</button>
               <button data-jump="2026-06-21T12:00:00Z" class="jump-btn py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/25 border border-amber-400/25 text-[9px] font-mono-num font-semibold text-amber-300 transition">21 Haz</button>
               <button data-jump="2026-09-23T12:00:00Z" class="jump-btn py-1 rounded-lg bg-orange-500/10 hover:bg-orange-500/25 border border-orange-400/25 text-[9px] font-mono-num font-semibold text-orange-300 transition">23 Eyl</button>
               <button data-jump="2026-12-21T12:00:00Z" class="jump-btn py-1 rounded-lg bg-sky-500/10 hover:bg-sky-500/25 border border-sky-400/25 text-[9px] font-mono-num font-semibold text-sky-300 transition">21 Ara</button>
-              <button data-jump="2026-08-12T17:47:00Z" class="jump-btn py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 border border-rose-400/30 text-[9px] font-mono-num font-semibold text-rose-300 transition" title="12 Ağustos 2026 Tam Güneş Tutulması">Tutulma</button>
+              <button data-jump="2026-08-12T17:47:00Z" class="jump-btn py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 border border-amber-400/35 text-[9px] font-mono-num font-semibold text-amber-200 transition" title="12 Ağustos 2026 Tam Güneş Tutulması">Güneş Tut.</button>
+              <button data-jump="2026-03-03T11:33:00Z" class="jump-btn py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 border border-rose-400/35 text-[9px] font-mono-num font-semibold text-rose-300 transition" title="3 Mart 2026 Tam Ay Tutulması (Kanlı Ay)">Kanlı Ay</button>
             </div>
 
             <!-- Konum Güneş Yüksekliği + Canlı SVG Yay -->
             <div class="hud-subcard p-2.5 rounded-xl mb-2">
-              <div class="flex items-center justify-between gap-2 mb-1.5">
+              <div class="flex items-center justify-between gap-2 mb-1">
                 <label for="ui-city-select" class="text-[10px] text-slate-400 uppercase font-semibold">Konum &amp; Pin</label>
                 <select id="ui-city-select" aria-label="Şehir seçimi" class="bg-slate-900/90 text-slate-100 text-[11px] rounded-lg px-2 py-0.5 border border-white/15 focus:outline-none focus:ring-1 focus:ring-amber-400">
                   ${cityOptions}
                 </select>
               </div>
+              <div id="ui-custom-pin-bar" class="hidden mb-1.5 flex items-center justify-between gap-1 text-[10px] font-mono-num bg-amber-500/15 text-amber-200 border border-amber-400/30 px-2 py-0.5 rounded-md">
+                <span id="ui-custom-pin-text" class="truncate"></span>
+                <button id="btn-clear-pin" aria-label="Özel pini kaldır" class="text-amber-300 hover:text-white">✕</button>
+              </div>
+              <div class="text-[9px] text-slate-400 mb-1">İpucu: Dünya üzerine tıklayarak özel pin bırak</div>
               <div class="flex items-center gap-2.5">
                 <svg viewBox="0 0 110 56" class="w-[100px] h-[50px] shrink-0 overflow-visible" aria-hidden="true">
                   <defs>
@@ -211,9 +218,12 @@ export class ObservatoryUI {
         </div>
       </div>
 
-      <!-- Sağ Kamera & Katman Paneli -->
-      <div class="absolute top-[70px] md:top-[72px] right-3 md:right-5 pointer-events-auto">
-        <div class="hud-panel p-2.5 rounded-2xl flex flex-col gap-1 w-48">
+      <!-- Sağ Kamera & Katman Paneli (Mobilde katlanabilir) -->
+      <div class="absolute top-[70px] md:top-[72px] right-3 md:right-5 pointer-events-none flex flex-col items-end gap-2">
+        <button id="btn-toggle-right" aria-expanded="true" aria-controls="right-panel-body" class="md:hidden pointer-events-auto hud-panel px-2.5 py-1 rounded-xl text-[11px] font-medium text-slate-300 hover:text-white transition">
+          Kamera &amp; Katmanlar
+        </button>
+        <div id="right-panel-body" class="pointer-events-auto hud-panel p-2.5 rounded-2xl flex flex-col gap-1 w-48">
           <span class="text-[9px] text-slate-400 font-semibold uppercase tracking-[0.14em] px-1.5 pb-1">Kamera Odağı</span>
           <button data-cam="sun" class="cam-btn px-2 py-1.5 rounded-xl text-xs font-medium text-left hover:bg-white/10 transition text-amber-300">Güneş (Merkez)</button>
           <button data-cam="earth" class="cam-btn px-2 py-1.5 rounded-xl text-xs font-medium text-left hover:bg-white/10 transition text-sky-300">Dünya &amp; Gece Işıkları</button>
@@ -302,10 +312,14 @@ export class ObservatoryUI {
     });
 
     const datePicker = document.getElementById('ui-date-picker') as HTMLInputElement;
-    datePicker.addEventListener('change', () => {
+    const timePicker = document.getElementById('ui-time-picker') as HTMLInputElement;
+    const applyDateTime = () => {
       if (!datePicker.value) return;
-      store.set({ isPlaying: false, jd: dateToJulianDate(new Date(`${datePicker.value}T12:00:00Z`)) });
-    });
+      const t = timePicker.value || '12:00';
+      store.set({ isPlaying: false, jd: dateToJulianDate(new Date(`${datePicker.value}T${t}:00Z`)) });
+    };
+    datePicker.addEventListener('change', applyDateTime);
+    timePicker.addEventListener('change', applyDateTime);
 
     document.getElementById('btn-live-now')!.addEventListener('click', () => {
       store.set({ isPlaying: false, jd: dateToJulianDate(new Date()) });
@@ -315,9 +329,17 @@ export class ObservatoryUI {
       store.set({ sidebarOpen: !store.get().sidebarOpen });
     });
 
+    document.getElementById('btn-toggle-right')!.addEventListener('click', () => {
+      store.set({ rightPanelOpen: !store.get().rightPanelOpen });
+    });
+
     const citySelect = document.getElementById('ui-city-select') as HTMLSelectElement;
     citySelect.addEventListener('change', () => {
-      store.set({ selectedCityId: citySelect.value });
+      store.set({ selectedCityId: citySelect.value, customPin: null });
+    });
+
+    document.getElementById('btn-clear-pin')!.addEventListener('click', () => {
+      store.set({ customPin: null });
     });
 
     const timeline = document.getElementById('timeline-slider') as HTMLInputElement;
@@ -454,7 +476,7 @@ export class ObservatoryUI {
       }
     }
 
-    // Sidebar collapse
+    // Sidebar & right panel collapse
     if (changed.has('sidebarOpen')) {
       const panels = document.getElementById('sidebar-panels')!;
       const btn = document.getElementById('btn-toggle-sidebar')!;
@@ -464,6 +486,12 @@ export class ObservatoryUI {
       btn.setAttribute('aria-expanded', String(state.sidebarOpen));
       chev.style.transform = state.sidebarOpen ? 'rotate(0deg)' : 'rotate(180deg)';
       lbl.textContent = state.sidebarOpen ? 'Telemetriyi Gizle' : 'Telemetriyi Göster';
+    }
+    if (changed.has('rightPanelOpen')) {
+      const body = document.getElementById('right-panel-body')!;
+      const btn = document.getElementById('btn-toggle-right')!;
+      body.classList.toggle('hidden', !state.rightPanelOpen);
+      btn.setAttribute('aria-expanded', String(state.rightPanelOpen));
     }
 
     // Play/Pause, Speed, Scale, Switches
@@ -514,23 +542,38 @@ export class ObservatoryUI {
     }
 
     // Ephemeris & City Metrics & Moon Phase
-    if (changed.has('jd') || changed.has('selectedCityId')) {
+    if (changed.has('jd') || changed.has('selectedCityId') || changed.has('customPin')) {
       const eqDay = getEquinoxDayOfYear(state.jd);
       (document.getElementById('timeline-slider') as HTMLInputElement).value = eqDay.toFixed(2);
 
       const dateObj = julianDateToDate(state.jd);
       const isoDate = dateObj.toISOString().slice(0, 10);
-      const dateKey = `${isoDate}-${state.selectedCityId}`;
+      const isoTime = dateObj.toISOString().slice(11, 16);
+      const pinKey = state.customPin ? `${state.customPin.lat.toFixed(2)},${state.customPin.lon.toFixed(2)}` : state.selectedCityId;
+      const dateKey = `${isoDate}-${isoTime}-${pinKey}`;
 
       if (dateKey !== this.lastDateKey) {
         this.lastDateKey = dateKey;
         const datePicker = document.getElementById('ui-date-picker') as HTMLInputElement;
-        if (document.activeElement !== datePicker) {
-          datePicker.value = isoDate;
-        }
+        const timePicker = document.getElementById('ui-time-picker') as HTMLInputElement;
+        if (document.activeElement !== datePicker) datePicker.value = isoDate;
+        if (document.activeElement !== timePicker) timePicker.value = isoTime;
+
         document.getElementById('ui-date-text')!.textContent = formatTurkishDate(dateObj);
 
-        const season = getNorthernSeason(eqDay);
+        const city = CITIES.find((c) => c.id === state.selectedCityId) || CITIES[0];
+        const activeLat = state.customPin ? state.customPin.lat : city.lat;
+
+        const customBar = document.getElementById('ui-custom-pin-bar')!;
+        if (state.customPin) {
+          customBar.classList.remove('hidden');
+          document.getElementById('ui-custom-pin-text')!.textContent = state.customPin.label;
+        } else {
+          customBar.classList.add('hidden');
+        }
+
+        const season = getSeasonForLatitude(eqDay, activeLat);
+        document.getElementById('ui-hemisphere-label')!.textContent = season.hemisphereLabel;
         const seasonEl = document.getElementById('ui-season-text')!;
         seasonEl.textContent = season.name;
         seasonEl.className = `text-[11px] font-bold mt-0.5 truncate ${season.colorClass}`;
@@ -541,8 +584,7 @@ export class ObservatoryUI {
         const declDeg = computeSolarDeclinationDeg(state.jd);
         document.getElementById('ui-decl-text')!.textContent = `${declDeg >= 0 ? '+' : ''}${declDeg.toFixed(1)}°`;
 
-        const city = CITIES.find((c) => c.id === state.selectedCityId) || CITIES[0];
-        const metrics = computeCitySolarMetrics(city.lat, declDeg);
+        const metrics = computeCitySolarMetrics(activeLat, declDeg);
         document.getElementById('ui-daylight')!.textContent = metrics.daylightFormatted;
         document.getElementById('ui-noon-alt')!.textContent = `${metrics.noonAltitudeDeg.toFixed(1)}°`;
 

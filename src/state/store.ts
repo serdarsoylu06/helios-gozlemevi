@@ -1,6 +1,12 @@
 import { BodyId, CameraPreset, CITIES, SimMode } from '../astronomy/constants';
 import { dateToJulianDate } from '../astronomy/ephemeris';
 
+export interface CustomPin {
+  lat: number;
+  lon: number;
+  label: string;
+}
+
 export interface AppState {
   jd: number;
   isPlaying: boolean;
@@ -10,6 +16,7 @@ export interface AppState {
   selectedBody: BodyId;
   cameraPreset: CameraPreset;
   selectedCityId: string;
+  customPin: CustomPin | null;
   showLabels: boolean;
   showLightBeam: boolean;
   showClouds: boolean;
@@ -17,6 +24,7 @@ export interface AppState {
   useRealSpin: boolean;
   useSound: boolean;
   sidebarOpen: boolean;
+  rightPanelOpen: boolean;
   activeTourIndex: number | null;
   textureQuality: 'loading' | 'nasa-2k' | 'procedural';
 }
@@ -53,6 +61,8 @@ class Store {
   }
 }
 
+const isDesktop = typeof window !== 'undefined' ? window.innerWidth >= 768 : true;
+
 export const store = new Store({
   jd: dateToJulianDate(new Date('2026-03-21T12:00:00Z')),
   isPlaying: true,
@@ -62,13 +72,15 @@ export const store = new Store({
   selectedBody: 'earth',
   cameraPreset: 'default',
   selectedCityId: CITIES[0].id,
+  customPin: null,
   showLabels: true,
   showLightBeam: true,
   showClouds: true,
   showTropics: false,
   useRealSpin: false,
   useSound: false,
-  sidebarOpen: true,
+  sidebarOpen: isDesktop,
+  rightPanelOpen: isDesktop,
   activeTourIndex: null,
   textureQuality: 'loading',
 });

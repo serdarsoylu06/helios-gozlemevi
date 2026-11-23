@@ -216,10 +216,24 @@ export function computeLunarState(jd: number): LunarState {
 
 export function getNorthernSeason(equinoxDay: number): { name: string; colorClass: string } {
   const d = ((equinoxDay % 365.25) + 365.25) % 365.25;
-  if (d < 92.8) return { name: 'İlkbahar', colorClass: 'text-emerald-400' };
-  if (d < 186.4) return { name: 'Yaz', colorClass: 'text-amber-400' };
-  if (d < 276.2) return { name: 'Sonbahar', colorClass: 'text-orange-400' };
+  // Exact ecliptic longitude quadrants: 0° (0), 90° (91.3125), 180° (182.625), 270° (273.9375)
+  if (d < 91.3125) return { name: 'İlkbahar', colorClass: 'text-emerald-400' };
+  if (d < 182.625) return { name: 'Yaz', colorClass: 'text-amber-400' };
+  if (d < 273.9375) return { name: 'Sonbahar', colorClass: 'text-orange-400' };
   return { name: 'Kış', colorClass: 'text-sky-400' };
+}
+
+export function getSeasonForLatitude(
+  equinoxDay: number,
+  latDeg: number
+): { name: string; colorClass: string; hemisphereLabel: string } {
+  const isSouth = latDeg < 0;
+  const shiftedDay = isSouth ? equinoxDay + 182.625 : equinoxDay;
+  const season = getNorthernSeason(shiftedDay);
+  return {
+    ...season,
+    hemisphereLabel: isSouth ? 'Güney Y.K.' : 'Kuzey Y.K.',
+  };
 }
 
 export function formatTurkishDate(date: Date): string {

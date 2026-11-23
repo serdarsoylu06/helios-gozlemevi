@@ -87,6 +87,7 @@ export class SolarSystemScene {
   private earthOrbitLine!: THREE.LineLoop;
   private asteroidBelt!: THREE.InstancedMesh;
   private comparisonGroup!: THREE.Group;
+  private comparisonEarthMat: THREE.MeshStandardMaterial | null = null;
 
   private planetRigs = new Map<BodyId, PlanetRig>();
   private labels = new Map<string, LabelEntry>();
@@ -413,9 +414,14 @@ export class SolarSystemScene {
   }
 
   private updateCityPinPosition(cityId: string): void {
+    const custom = store.get().customPin;
     const city = CITIES.find((c) => c.id === cityId) || CITIES[0];
-    const latRad = THREE.MathUtils.degToRad(city.lat);
-    const lonRad = THREE.MathUtils.degToRad(city.lon);
+    this.setPinLatLon(custom ? custom.lat : city.lat, custom ? custom.lon : city.lon);
+  }
+
+  private setPinLatLon(lat: number, lon: number): void {
+    const latRad = THREE.MathUtils.degToRad(lat);
+    const lonRad = THREE.MathUtils.degToRad(lon);
     const r = PLANET_DATA.earth.modelRadius;
 
     // Three.js SphereGeometry equirectangular UV mapping
@@ -574,10 +580,19 @@ export class SolarSystemScene {
       cursorX += r + 1.45;
       if (key === 'saturn') cursorX += 2.2;
 
-      const mat =
-        key === 'earth'
-          ? new THREE.MeshStandardMaterial({ map: createEarthFallbackTexture(), roughness: 0.55 })
-          : new THREE.MeshStandardMaterial({ map: createDetailedPlanetTexture(key), roughness: 0.65 });
+      let mat: THREE.MeshStandardMaterial;
+      if (key === 'earth') {
+        this.comparisonEarthMat = new THREE.MeshStandardMaterial({
+          map: createEarthFallbackTexture(),
+          roughness: 0.55,
+        });
+        mat = this.comparisonEarthMat;
+      } else {
+        mat = new THREE.MeshStandardMaterial({
+          map: createDetailedPlanetTexture(key),
+          roughness: 0.65,
+        });
+      }
 
       const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 40, 40), mat);
       mesh.position.set(cursorX, 0, 0);
@@ -632,6 +647,10 @@ export class SolarSystemScene {
         dayTex.colorSpace = THREE.SRGBColorSpace;
         dayTex.anisotropy = 8;
         this.earthShaderMat.uniforms.uDayMap.value = dayTex;
+        if (this.comparisonEarthMat) {
+          this.comparisonEarthMat.map = dayTex;
+          this.comparisonEarthMat.needsUpdate = true;
+        }
         store.set({ textureQuality: 'nasa-2k' });
       },
       undefined,
@@ -709,7 +728,7 @@ export class SolarSystemScene {
     if (changed.has('showTropics')) {
       this.tropicsGroup.visible = state.showTropics;
     }
-    if (changed.has('selectedCityId')) {
+    if (changed.has('selectedCityId') || changed.has('customPin')) {
       this.updateCityPinPosition(state.selectedCityId);
     }
     if (changed.has('selectedBody')) {
@@ -829,9 +848,12 @@ export class SolarSystemScene {
     const earthPos = computePlanetPosition('earth', jd, 1.0);
     const orbitAngle = earthPos.orbitAngleRad;
 
-    // Tellurion arm follows Earth's true Kepler angle & radius
+    // Tellurion mode keeps Earth seated squarely on the brass mechanical bridge;
+    // Solar System mode uses Earth's true Kepler elliptical radius.
     this.mainArmGroup.rotation.y = orbitAngle;
-    this.earthSystemGroup.position.set(earthPos.modelRadius, 0, 0);
+    const earthRadius =
+      state.mode === 'tellurion' ? PLANET_DATA.earth.modelDistance : earthPos.modelRadius;
+    this.earthSystemGroup.position.set(earthRadius, 0, 0);
     this.earthSystemGroup.rotation.y = -orbitAngle;
 
     // Interlocking brass gears counter-rotate realistically!
@@ -937,7 +959,23 @@ export class SolarSystemScene {
       const hits = this.raycaster.intersectObjects(candidates, false);
       if (hits.length > 0 && hits[0].object.userData.bodyId) {
         const bodyId = hits[0].object.userData.bodyId as BodyId;
-        store.set({ selectedBody: bodyId });
+        if (bodyId === 'earth' && store.get().selectedBody === 'earth') {
+          // Clicking directly on Earth drops a custom latitude/longitude pin!
+          const localPt = this.earthMesh.worldToLocal(hits[0].point.clone()).normalize();
+          const lat = THREE.MathUtils.radToDeg(Math.asin(THREE.MathUtils.clamp(localPt.y, -1, 1)));
+          const lon = THREE.MathUtils.radToDeg(Math.atan2(-localPt.z, localPt.x));
+          const latDir = lat >= 0 ? 'K' : 'G';
+          const lonDir = lon >= 0 ? 'D' : 'B';
+          store.set({
+            customPin: {
+              lat,
+              lon,
+              label: `Özel Pin (${Math.abs(lat).toFixed(1)}°${latDir}, ${Math.abs(lon).toFixed(1)}°${lonDir})`,
+            },
+          });
+        } else {
+          store.set({ selectedBody: bodyId });
+        }
       }
     });
 
