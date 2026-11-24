@@ -12,6 +12,7 @@ import {
   computeSolarDeclinationDeg,
   dateToJulianDate,
   formatTurkishDate,
+  getEducationalInsight,
   getEquinoxDayOfYear,
   getSeasonForLatitude,
   julianDateToDate,
@@ -93,7 +94,7 @@ export class ObservatoryUI {
           <section class="hud-panel p-3.5 rounded-2xl pointer-events-auto">
             <div class="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
               <span class="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400/90">Kepler Efemeris</span>
-              <span id="ui-earth-au" class="text-[10px] font-mono-num text-sky-300 bg-sky-500/10 border border-sky-400/20 px-2 py-0.5 rounded-md">1.000 AU</span>
+              <span id="ui-earth-au" class="text-[10px] font-mono-num text-sky-300 bg-sky-500/10 border border-sky-400/20 px-2 py-0.5 rounded-md">1.000 AU · 29.8 km/s</span>
             </div>
 
             <!-- Gerçek Tarih + Saat (UTC) Seçici + Şu An -->
@@ -180,6 +181,11 @@ export class ObservatoryUI {
             </div>
 
             <div id="ui-eclipse-alert" class="hidden mt-2 text-[11px] font-semibold px-2.5 py-1.5 rounded-xl border text-center" role="status" aria-live="polite"></div>
+
+            <!-- Canlı Eğitmen Notu ("Şu An Ne Oluyor?") -->
+            <div id="ui-edu-insight" class="mt-2 text-[10.5px] text-slate-300 leading-snug bg-amber-500/8 border border-amber-400/20 px-2.5 py-2 rounded-xl">
+              Güneş ışınları Ekvator'a dik düşüyor.
+            </div>
           </section>
 
           <!-- Seçili Gök Cismi Kartı -->
@@ -346,8 +352,11 @@ export class ObservatoryUI {
     timeline.addEventListener('input', () => {
       const targetEqDay = parseFloat(timeline.value);
       const curDate = julianDateToDate(store.get().jd);
-      const year = curDate.getUTCFullYear();
-      const eqStartJD = dateToJulianDate(new Date(Date.UTC(year, 2, 20, 15, 0, 0)));
+      const m = curDate.getUTCMonth();
+      const d = curDate.getUTCDate();
+      // If currently in Jan–Mar 19, anchor to previous year's March equinox to prevent a 1-year jump
+      const anchorYear = m < 2 || (m === 2 && d < 20) ? curDate.getUTCFullYear() - 1 : curDate.getUTCFullYear();
+      const eqStartJD = dateToJulianDate(new Date(Date.UTC(anchorYear, 2, 20, 15, 0, 0)));
       store.set({ isPlaying: false, jd: eqStartJD + targetEqDay });
     });
 
@@ -579,10 +588,19 @@ export class ObservatoryUI {
         seasonEl.className = `text-[11px] font-bold mt-0.5 truncate ${season.colorClass}`;
 
         const earthOrb = computePlanetPosition('earth', state.jd);
-        document.getElementById('ui-earth-au')!.textContent = `${earthOrb.radiusAU.toFixed(3)} AU`;
+        document.getElementById('ui-earth-au')!.textContent =
+          `${earthOrb.radiusAU.toFixed(3)} AU · ${earthOrb.speedKmS.toFixed(1)} km/s`;
 
         const declDeg = computeSolarDeclinationDeg(state.jd);
         document.getElementById('ui-decl-text')!.textContent = `${declDeg >= 0 ? '+' : ''}${declDeg.toFixed(1)}°`;
+
+        const lunarNow = computeLunarState(state.jd);
+        document.getElementById('ui-edu-insight')!.textContent = getEducationalInsight(
+          state.jd,
+          declDeg,
+          earthOrb.radiusAU,
+          lunarNow.eclipseType
+        );
 
         const metrics = computeCitySolarMetrics(activeLat, declDeg);
         document.getElementById('ui-daylight')!.textContent = metrics.daylightFormatted;

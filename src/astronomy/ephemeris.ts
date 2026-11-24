@@ -43,8 +43,11 @@ export interface OrbitalPosition {
   z: number;
   orbitAngleRad: number; // Vernal equinox = 0, counter-clockwise from +Y
   radiusAU: number;
+  speedKmS: number; // Live orbital velocity via vis-viva equation
   modelRadius: number;
 }
+
+const SUN_MU_AU3_KMS2 = 887.128; // GM_sun in AU * (km/s)^2 -> v = sqrt(887.128 * (2/r - 1/a))
 
 /**
  * Computes heliocentric 3D position using Keplerian elliptical elements.
@@ -54,7 +57,7 @@ export interface OrbitalPosition {
 export function computePlanetPosition(bodyId: BodyId, jd: number, exaggeratedEccentricity = 1.0): OrbitalPosition {
   const p = PLANET_DATA[bodyId];
   if (bodyId === 'sun' || p.modelDistance === 0) {
-    return { x: 0, y: 0, z: 0, orbitAngleRad: 0, radiusAU: 0, modelRadius: 0 };
+    return { x: 0, y: 0, z: 0, orbitAngleRad: 0, radiusAU: 0, speedKmS: 0, modelRadius: 0 };
   }
 
   const daysSinceJ2000 = jd - J2000_JD;
@@ -78,6 +81,10 @@ export function computePlanetPosition(bodyId: BodyId, jd: number, exaggeratedEcc
 
   const rFactor = 1 - e * cosE;
   const radiusAU = p.semiMajorAxisAU * (1 - p.eccentricity * cosE);
+  const speedKmS =
+    p.semiMajorAxisAU > 0
+      ? Math.sqrt(Math.max(0, SUN_MU_AU3_KMS2 * (2 / radiusAU - 1 / p.semiMajorAxisAU)))
+      : 0;
   const modelR = p.modelDistance * rFactor;
 
   // 3D inclination relative to ecliptic plane (XZ plane in Three.js, +Y north)
@@ -86,7 +93,7 @@ export function computePlanetPosition(bodyId: BodyId, jd: number, exaggeratedEcc
   const z = -modelR * Math.sin(orbitAngleRad);
   const y = modelR * Math.sin(orbitAngleRad) * Math.sin(incRad);
 
-  return { x, y, z, orbitAngleRad, radiusAU, modelRadius: modelR };
+  return { x, y, z, orbitAngleRad, radiusAU, speedKmS, modelRadius: modelR };
 }
 
 /**
@@ -242,4 +249,38 @@ export function formatTurkishDate(date: Date): string {
     'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
   ];
   return `${date.getUTCDate()} ${months[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+}
+
+/**
+ * Pedagogical live astronomy insight ("Şu An Ne Oluyor?") explaining the active orbital phenomenon.
+ */
+export function getEducationalInsight(
+  jd: number,
+  declDeg: number,
+  earthAU: number,
+  eclipseType: EclipseType
+): string {
+  if (eclipseType === 'solar') {
+    return 'Güneş Tutulması: Ay yörünge düğümünde Dünya ile Güneş arasına girdi; gölge konisi Dünya yüzeyine düşüyor.';
+  }
+  if (eclipseType === 'lunar') {
+    return 'Ay Tutulması (Kanlı Ay): Ay düğüm noktasında Dünya gölgesine girdi; atmosferden kırılan kızıl ışık Ay\'ı boyuyor.';
+  }
+  if (earthAU < 0.985) {
+    return 'Günberi (Perihelion): Dünya Güneş\'e en yakın (0.983 AU) ve en hızlı (~30.3 km/s); buna rağmen Kuzey Y.K.\'de kış yaşanır.';
+  }
+  if (earthAU > 1.015) {
+    return 'Günöte (Aphelion): Dünya Güneş\'e en uzak (1.017 AU) ve en yavaş (~29.3 km/s) konumunda.';
+  }
+  if (Math.abs(declDeg) < 1.8) {
+    return 'Ekinoks: Güneş ışınları Ekvator\'a 90° dik düşüyor; her iki yarımkürede gece ve gündüz eşit (12 saat).';
+  }
+  if (declDeg > 22.4) {
+    return 'Yaz Gündönümü: Kuzey Kutbu Güneş\'e eğik; ışınlar Yengeç Dönencesi\'ne (23.4°K) dik düşüyor.';
+  }
+  if (declDeg < -22.4) {
+    return 'Kış Gündönümü: Güney Kutbu Güneş\'e eğik; ışınlar Oğlak Dönencesi\'ne (23.4°G) dik düşüyor.';
+  }
+  const latStr = `${Math.abs(declDeg).toFixed(1)}°${declDeg >= 0 ? 'K' : 'G'}`;
+  return `Güneş ışınları şu an ${latStr} enlemine 90° dik düşüyor; eksen eğikliği gündüz süresini değiştiriyor.`;
 }

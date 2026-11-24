@@ -28,11 +28,13 @@ describe('Astronomy & Kepler Ephemeris Engine', () => {
     expect(computeSolarDeclinationDeg(decSol)).toBeLessThan(-22.8);
   });
 
-  it('shows Earth closer to Sun at January perihelion than July aphelion', () => {
+  it('shows Earth closer and faster at January perihelion than July aphelion (Kepler 2nd Law)', () => {
     const jan = computePlanetPosition('earth', dateToJulianDate(new Date('2026-01-03T12:00:00Z')));
     const jul = computePlanetPosition('earth', dateToJulianDate(new Date('2026-07-04T12:00:00Z')));
     expect(jan.radiusAU).toBeLessThan(0.986);
     expect(jul.radiusAU).toBeGreaterThan(1.014);
+    expect(jan.speedKmS).toBeGreaterThan(30.1);
+    expect(jul.speedKmS).toBeLessThan(29.5);
   });
 
   it('computes accurate daylight hours for Istanbul and Arctic', () => {

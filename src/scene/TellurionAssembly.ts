@@ -100,7 +100,7 @@ export function buildTellurionHardware(): TellurionParts {
 
   const moonR = 3.6;
   const ringPts: THREE.Vector3[] = [];
-  for (let i = 0; i <= 96; i++) {
+  for (let i = 0; i < 96; i++) {
     const a = (i / 96) * Math.PI * 2;
     ringPts.push(new THREE.Vector3(Math.cos(a) * moonR, 0, -Math.sin(a) * moonR));
   }

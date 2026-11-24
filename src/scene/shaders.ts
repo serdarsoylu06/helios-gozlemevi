@@ -62,11 +62,13 @@ export function createEarthDayNightMaterial(
         vec3 nightTex = texture2D(uNightMap, vUv).rgb;
         float oceanMask = mix(0.25, texture2D(uSpecMap, vUv).r, uUseSpecMap);
 
-        // Solar Eclipse shadow projection from Moon onto Earth
+        // Solar Eclipse shadow projection from Moon onto Earth (only when Moon is between Earth & Sun)
+        vec3 toSun = uSunPosition - vWorldPosition;
+        float distToSun = length(toSun);
         vec3 toMoon = uMoonPosition - vWorldPosition;
         float proj = dot(toMoon, L);
         float eclipseShadow = 1.0;
-        if (proj > 0.0) {
+        if (proj > 0.0 && proj < distToSun) {
           vec3 perp = toMoon - L * proj;
           float distToAxis = length(perp);
           float umbra = smoothstep(uMoonRadius * 0.45, uMoonRadius * 1.35, distToAxis);
@@ -84,6 +86,8 @@ export function createEarthDayNightMaterial(
 
         vec3 finalColor = mix(nightColor, dayColor, dayFactor) + twilightColor;
         gl_FragColor = vec4(finalColor, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
       }
     `,
   });

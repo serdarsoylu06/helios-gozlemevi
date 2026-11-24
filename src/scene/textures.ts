@@ -265,61 +265,6 @@ export function createCalendarDialTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-export function createMoonPhaseDialTexture(): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 512;
-  const ctx = canvas.getContext('2d')!;
-  const cx = 256;
-  const cy = 256;
-
-  ctx.fillStyle = '#090f1f';
-  ctx.beginPath();
-  ctx.arc(cx, cy, 252, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = '#0f2549';
-  ctx.beginPath();
-  ctx.arc(cx, cy, 234, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.lineWidth = 4;
-  ctx.strokeStyle = '#d4a656';
-  ctx.stroke();
-
-  for (let i = 0; i < 8; i++) {
-    const angle = (i / 8) * Math.PI * 2;
-    const rx = cx + Math.cos(angle) * 168;
-    const ry = cy + Math.sin(angle) * 168;
-
-    ctx.beginPath();
-    ctx.arc(rx, ry, 22, 0, Math.PI * 2);
-    ctx.fillStyle = i === 0 ? '#0f172a' : '#f1f5f9';
-    ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#94a3b8';
-    ctx.stroke();
-
-    if (i !== 0 && i !== 4) {
-      ctx.beginPath();
-      ctx.arc(rx, ry, 22, -Math.PI / 2, Math.PI / 2, i > 4);
-      ctx.fillStyle = '#0f172a';
-      ctx.fill();
-    }
-  }
-
-  ctx.beginPath();
-  ctx.arc(cx, cy, 108, 0, Math.PI * 2);
-  ctx.fillStyle = '#0b101d';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(212, 166, 86, 0.75)';
-  ctx.lineWidth = 3;
-  ctx.stroke();
-
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
 export function createDetailedPlanetTexture(key: string): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = 1024;

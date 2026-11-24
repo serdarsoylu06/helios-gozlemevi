@@ -77,6 +77,7 @@ export class SolarSystemScene {
   private earthCloudsMesh!: THREE.Mesh;
   private earthAtmoMesh!: THREE.Mesh;
   private tropicsGroup!: THREE.Group;
+  private subsolarMarker!: THREE.Mesh;
   private cityPinGroup!: THREE.Group;
 
   private moonOrbitGroup!: THREE.Group;
@@ -88,6 +89,7 @@ export class SolarSystemScene {
   private asteroidBelt!: THREE.InstancedMesh;
   private comparisonGroup!: THREE.Group;
   private comparisonEarthMat: THREE.MeshStandardMaterial | null = null;
+  private comparisonClickables: THREE.Mesh[] = [];
 
   private planetRigs = new Map<BodyId, PlanetRig>();
   private labels = new Map<string, LabelEntry>();
@@ -178,6 +180,9 @@ export class SolarSystemScene {
     this.controls.target.copy(this.desiredTarget);
     this.controls.addEventListener('start', () => {
       this.desiredCamPos = null;
+      if (store.get().cameraPreset === 'surface') {
+        store.set({ cameraPreset: 'earth' });
+      }
     });
 
     // Lighting
@@ -338,10 +343,22 @@ export class SolarSystemScene {
     );
     this.earthTiltGroup.add(this.earthAtmoMesh);
 
-    // Equator, Tropics & Polar Circles overlay
+    // Equator, Tropics, Polar Circles, K/G Pole Badges & 90° Subsolar Point Marker
     this.tropicsGroup = this.buildTropicsOverlay(PLANET_DATA.earth.modelRadius * 1.025);
     this.tropicsGroup.visible = store.get().showTropics;
     this.earthTiltGroup.add(this.tropicsGroup);
+
+    this.subsolarMarker = new THREE.Mesh(
+      new THREE.RingGeometry(0.055, 0.095, 24),
+      new THREE.MeshBasicMaterial({
+        color: 0xfef08a,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.95,
+      })
+    );
+    this.subsolarMarker.visible = store.get().showTropics;
+    this.scene.add(this.subsolarMarker);
 
     // Interactive City Pin on Earth's surface
     this.cityPinGroup = new THREE.Group();
@@ -409,6 +426,35 @@ export class SolarSystemScene {
       const mat = new THREE.LineBasicMaterial({ color: colorHex, transparent: true, opacity });
       group.add(new THREE.Line(geo, mat));
     });
+
+    // North (K) & South (G) Pole educational markers on the axis tips
+    const makePoleSprite = (text: string, color: string, yPos: number): THREE.Sprite => {
+      const c = document.createElement('canvas');
+      c.width = 64;
+      c.height = 64;
+      const ctx = c.getContext('2d')!;
+      ctx.fillStyle = 'rgba(7, 11, 22, 0.85)';
+      ctx.beginPath();
+      ctx.arc(32, 32, 24, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '700 28px Space Grotesk, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 32, 33);
+      const sp = new THREE.Sprite(
+        new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false })
+      );
+      sp.position.set(0, yPos, 0);
+      sp.scale.set(0.32, 0.32, 1);
+      return sp;
+    };
+    group.add(makePoleSprite('K', '#38bdf8', radius * 1.52));
+    group.add(makePoleSprite('G', '#f59e0b', -radius * 1.52));
+
     return group;
   }
 
@@ -598,6 +644,7 @@ export class SolarSystemScene {
       mesh.rotation.x = THREE.MathUtils.degToRad(p.tiltDeg);
       mesh.userData.bodyId = key;
       this.comparisonGroup.add(mesh);
+      this.comparisonClickables.push(mesh);
 
       if (p.hasRings) {
         const innerR = r * 1.32;
@@ -714,12 +761,9 @@ export class SolarSystemScene {
       this.applyMode(state.mode, false);
     }
     if (changed.has('planetScale')) {
-      this.earthMesh.scale.setScalar(state.planetScale);
-      this.earthCloudsMesh.scale.setScalar(state.planetScale);
-      this.earthAtmoMesh.scale.setScalar(state.planetScale);
-      this.tropicsGroup.scale.setScalar(state.planetScale);
+      this.earthTiltGroup.scale.setScalar(state.planetScale);
       this.moonMesh.scale.setScalar(state.planetScale);
-      this.planetRigs.forEach((rig) => rig.mesh.scale.setScalar(state.planetScale));
+      this.planetRigs.forEach((rig) => rig.tiltGroup.scale.setScalar(state.planetScale));
     }
     if (changed.has('showLightBeam')) {
       this.tellurion.lightBeamCone.visible = state.showLightBeam && state.mode === 'tellurion';
@@ -731,6 +775,7 @@ export class SolarSystemScene {
     }
     if (changed.has('showTropics')) {
       this.tropicsGroup.visible = state.showTropics;
+      this.subsolarMarker.visible = state.showTropics && state.mode !== 'comparison';
     }
     if (changed.has('selectedCityId') || changed.has('customPin')) {
       this.updateCityPinPosition(state.selectedCityId);
@@ -766,6 +811,7 @@ export class SolarSystemScene {
 
     this.tellurion.lightBeamCone.visible = isTellurion && store.get().showLightBeam;
     this.tellurion.moonOrbitRingGroup.visible = !isComparison;
+    this.subsolarMarker.visible = !isComparison && store.get().showTropics;
 
     if (instant) {
       this.tellurionDropProgress = isTellurion ? 0 : 1;
@@ -910,6 +956,17 @@ export class SolarSystemScene {
       Math.sin(lunar.draconicAngleRad) * 3.6 * Math.sin(THREE.MathUtils.degToRad(MOON_INCLINATION_DEG));
     this.moonMesh.position.y = moonYOffset;
 
+    // Position 90° Subsolar Point Marker on Earth's Sun-facing surface
+    if (this.subsolarMarker.visible) {
+      const earthWorld = new THREE.Vector3();
+      this.earthTiltGroup.getWorldPosition(earthWorld);
+      const sunWorld = new THREE.Vector3(0, 1.2, 0);
+      const toSun = sunWorld.sub(earthWorld).normalize();
+      const surfR = PLANET_DATA.earth.modelRadius * state.planetScale * 1.032;
+      this.subsolarMarker.position.copy(earthWorld).addScaledVector(toSun, surfR);
+      this.subsolarMarker.lookAt(earthWorld.clone().addScaledVector(toSun, surfR + 2));
+    }
+
     // Update Earth GLSL shader with Moon world position for real-time Solar Eclipse shadow
     this.moonMesh.getWorldPosition(this.tempMoonWorld);
     this.earthShaderMat.uniforms.uMoonPosition.value.copy(this.tempMoonWorld);
@@ -982,9 +1039,11 @@ export class SolarSystemScene {
 
       const mode = store.get().mode;
       const candidates =
-        mode === 'solar'
-          ? this.clickableMeshes
-          : this.clickableMeshes.filter((m) => !SOLAR_PLANET_KEYS.includes(m.userData.bodyId));
+        mode === 'comparison'
+          ? this.comparisonClickables
+          : mode === 'solar'
+            ? this.clickableMeshes
+            : this.clickableMeshes.filter((m) => !SOLAR_PLANET_KEYS.includes(m.userData.bodyId));
 
       const hits = this.raycaster.intersectObjects(candidates, false);
       if (hits.length > 0 && hits[0].object.userData.bodyId) {
