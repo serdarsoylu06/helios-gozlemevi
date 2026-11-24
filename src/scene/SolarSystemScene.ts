@@ -900,14 +900,15 @@ export class SolarSystemScene {
       this.desiredTarget.copy(earthPos);
       this.desiredCamPos = earthPos.clone().add(this.computeLitCameraOffset('earth', earthPos));
     } else if (preset === 'surface') {
-      // "Yüzeyden Bakış": Close orbital vantage right above the selected City Pin looking toward the Sun
+      // "Yüzeyden Bakış": Calm, scenic ISS-style close-up directly above the selected City Pin
       const pinWorld = new THREE.Vector3();
       const earthPos = new THREE.Vector3();
       this.cityPinGroup.getWorldPosition(pinWorld);
       this.earthTiltGroup.getWorldPosition(earthPos);
       const upNormal = pinWorld.clone().sub(earthPos).normalize();
-      this.desiredCamPos = pinWorld.clone().addScaledVector(upNormal, 1.35);
-      this.desiredTarget.copy(earthPos).lerp(new THREE.Vector3(0, 1.2, 0), 0.25);
+      const dist = 2.45 * state.planetScale;
+      this.desiredCamPos = pinWorld.clone().addScaledVector(upNormal, dist);
+      this.desiredTarget.copy(pinWorld);
     } else if (preset === 'top') {
       this.desiredTarget.set(0, 1.2, 0);
       this.desiredCamPos = state.mode === 'solar'
@@ -1089,9 +1090,15 @@ export class SolarSystemScene {
     const elapsed = this.clock.elapsedTime;
     const state = store.get();
 
-    // Advance simulation clock
+    // Advance simulation clock (calm ISS-like speed in Surface view so the globe never spins wildly)
     if (state.isPlaying && state.mode !== 'comparison') {
-      const nextJD = state.jd + delta * 10.8 * state.simSpeed;
+      const rate =
+        state.cameraPreset === 'surface'
+          ? state.useRealSpin
+            ? 0.05
+            : 0.22
+          : 10.8;
+      const nextJD = state.jd + delta * rate * state.simSpeed;
       store.set({ jd: nextJD });
       this.updatePositions(store.get());
     }
@@ -1126,8 +1133,20 @@ export class SolarSystemScene {
         this.earthTiltGroup.getWorldPosition(earthPos);
         this.cityPinGroup.getWorldPosition(pinWorld);
         const upNormal = pinWorld.clone().sub(earthPos).normalize();
-        this.desiredCamPos = pinWorld.clone().addScaledVector(upNormal, 1.35);
-        this.desiredTarget.copy(earthPos).lerp(new THREE.Vector3(0, 1.2, 0), 0.22);
+        const dist = 2.45 * state.planetScale;
+        const idealCam = pinWorld.clone().addScaledVector(upNormal, dist);
+
+        if (this.desiredCamPos) {
+          this.desiredCamPos.copy(idealCam);
+          this.desiredTarget.copy(pinWorld);
+          if (this.camera.position.distanceTo(idealCam) < 0.08) {
+            this.desiredCamPos = null;
+          }
+        } else {
+          // Lock smoothly onto the pin with zero rubber-band whip
+          this.camera.position.lerp(idealCam, 0.16);
+          this.controls.target.lerp(pinWorld, 0.2);
+        }
       } else {
         const trackId: BodyId = state.cameraPreset === 'earth' ? 'earth' : state.selectedBody;
         const bodyPos = new THREE.Vector3();
