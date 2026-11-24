@@ -292,7 +292,7 @@ export class SolarSystemScene {
     this.earthSystemGroup = new THREE.Group();
     this.earthSystemGroup.position.set(PLANET_DATA.earth.modelDistance, 0, 0);
     this.mainArmGroup.add(this.earthSystemGroup);
-    this.earthSystemGroup.add(this.tellurion.moonDialMesh);
+    this.earthSystemGroup.add(this.tellurion.moonOrbitRingGroup);
 
     // Earth 23.44° axial tilt group (June 21 tilts North Pole toward +Z Sun)
     this.earthTiltGroup = new THREE.Group();
@@ -364,11 +364,10 @@ export class SolarSystemScene {
       'solar',
     ]);
 
-    // Moon orbit group
+    // Moon orbit group (centered directly in Earth's ecliptic plane y = 1.2)
     this.moonOrbitGroup = new THREE.Group();
-    this.moonOrbitGroup.position.y = -2.5;
+    this.moonOrbitGroup.position.y = 1.2;
     this.earthSystemGroup.add(this.moonOrbitGroup);
-    this.moonOrbitGroup.add(this.tellurion.moonWireHoriz, this.tellurion.moonWireVert);
 
     this.moonMaterial = new THREE.MeshStandardMaterial({
       map: createDetailedPlanetTexture('moon'),
@@ -379,7 +378,7 @@ export class SolarSystemScene {
       new THREE.SphereGeometry(PLANET_DATA.moon.modelRadius, 36, 36),
       this.moonMaterial
     );
-    this.moonMesh.position.set(3.6, 3.7, 0);
+    this.moonMesh.position.set(3.6, 0, 0);
     this.moonMesh.userData.bodyId = 'moon';
     this.moonOrbitGroup.add(this.moonMesh);
     this.clickableMeshes.push(this.moonMesh);
@@ -761,10 +760,7 @@ export class SolarSystemScene {
     this.solarSystemGroup.visible = isSolar;
 
     this.tellurion.lightBeamCone.visible = isTellurion && store.get().showLightBeam;
-    this.tellurion.sunLensHousing.visible = isTellurion;
-    this.tellurion.moonDialMesh.visible = isTellurion;
-    this.tellurion.moonWireHoriz.visible = isTellurion;
-    this.tellurion.moonWireVert.visible = isTellurion;
+    this.tellurion.moonOrbitRingGroup.visible = !isComparison;
 
     if (instant) {
       this.tellurionDropProgress = isTellurion ? 0 : 1;
@@ -848,37 +844,30 @@ export class SolarSystemScene {
     const earthPos = computePlanetPosition('earth', jd, 1.0);
     const orbitAngle = earthPos.orbitAngleRad;
 
-    // Tellurion mode keeps Earth seated squarely on the brass mechanical bridge;
-    // Solar System mode uses Earth's true Kepler elliptical radius.
+    // Tellurion mode keeps Earth at clean reference radius; Solar System mode uses true Kepler elliptical radius.
     this.mainArmGroup.rotation.y = orbitAngle;
     const earthRadius =
       state.mode === 'tellurion' ? PLANET_DATA.earth.modelDistance : earthPos.modelRadius;
     this.earthSystemGroup.position.set(earthRadius, 0, 0);
     this.earthSystemGroup.rotation.y = -orbitAngle;
 
-    // Interlocking brass gears counter-rotate realistically!
-    this.tellurion.gears.forEach((gear, idx) => {
-      const dir = idx % 2 === 0 ? 1 : -1;
-      gear.rotation.y = orbitAngle * 4.5 * dir;
-    });
-
     // Earth spin
     const spinDay = jd - 2451545.0;
     this.earthMesh.rotation.y = state.useRealSpin ? spinDay * Math.PI * 2 : spinDay * 0.85;
     this.earthCloudsMesh.rotation.y = this.earthMesh.rotation.y * 1.12;
 
-    // Moon Kepler/Synodic + 5.145° orbital inclination
+    // Moon Kepler/Synodic + 5.145° orbital inclination (glides smoothly on visible tilted ring)
     const lunar = computeLunarState(jd);
     const lunarSynodicAngle = lunar.synodicAge * Math.PI * 2;
-    this.moonOrbitGroup.rotation.y = orbitAngle + Math.PI + lunarSynodicAngle;
+    const moonLongitude = orbitAngle + Math.PI + lunarSynodicAngle;
+    this.moonOrbitGroup.rotation.y = moonLongitude;
+
+    // Orient the visible 5.145° tilted lunar orbit ring along the line of nodes
+    this.tellurion.moonOrbitRingGroup.rotation.y = moonLongitude - lunar.draconicAngleRad;
 
     const moonYOffset =
       Math.sin(lunar.draconicAngleRad) * 3.6 * Math.sin(THREE.MathUtils.degToRad(MOON_INCLINATION_DEG));
-    this.moonMesh.position.y = 3.7 + moonYOffset;
-
-    const wireLen = 3.5 + moonYOffset;
-    this.tellurion.moonWireVert.scale.y = wireLen / 3.5;
-    this.tellurion.moonWireVert.position.y = 0.2 + wireLen / 2;
+    this.moonMesh.position.y = moonYOffset;
 
     // Update Earth GLSL shader with Moon world position for real-time Solar Eclipse shadow
     this.moonMesh.getWorldPosition(this.tempMoonWorld);
