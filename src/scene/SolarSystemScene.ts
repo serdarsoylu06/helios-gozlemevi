@@ -112,6 +112,12 @@ export class SolarSystemScene {
   private moonMesh!: THREE.Mesh;
   private moonMaterial!: THREE.MeshStandardMaterial;
 
+  private issOrbitGroup!: THREE.Group;
+  private issCraftGroup!: THREE.Group;
+  private halleyGroup!: THREE.Group;
+  private halleyIonTail!: THREE.Mesh;
+  private halleyDustTail!: THREE.Mesh;
+
   private solarSystemGroup!: THREE.Group;
   private earthOrbitLine!: THREE.LineLoop;
   private earthTrailLine!: THREE.Line;
@@ -159,6 +165,12 @@ export class SolarSystemScene {
     this.buildComparisonLineup();
     this.loadSatelliteTextures();
     this.setupEvents();
+
+    // Sync initial selected reticle label
+    const initSelected = store.get().selectedBody;
+    this.labels.forEach((entry, id) => {
+      entry.element.classList.toggle('is-selected', id.replace('cmp-', '') === initSelected);
+    });
 
     // Subscribe to state changes
     store.subscribe((state, changed) => this.onStateChange(state, changed));
@@ -624,6 +636,65 @@ export class SolarSystemScene {
     this.clickableMeshes.push(this.moonMesh);
 
     this.createLabel('moon', 'Ay · 0.27x', this.moonMesh, 0.72, '#cbd5e1', ['tellurion', 'solar']);
+
+    // International Space Station (ISS) in 51.6° inclined Low Earth Orbit
+    const issInclinedPivot = new THREE.Group();
+    issInclinedPivot.position.y = 1.2;
+    issInclinedPivot.rotation.z = THREE.MathUtils.degToRad(51.64);
+    this.earthSystemGroup.add(issInclinedPivot);
+
+    const issOrbitR = PLANET_DATA.iss.modelDistance;
+    const issRingPts: THREE.Vector3[] = [];
+    for (let i = 0; i < 64; i++) {
+      const a = (i / 64) * Math.PI * 2;
+      issRingPts.push(new THREE.Vector3(Math.cos(a) * issOrbitR, 0, Math.sin(a) * issOrbitR));
+    }
+    issInclinedPivot.add(
+      new THREE.LineLoop(
+        new THREE.BufferGeometry().setFromPoints(issRingPts),
+        new THREE.LineBasicMaterial({ color: 0xe2e8f0, transparent: true, opacity: 0.2 })
+      )
+    );
+
+    this.issOrbitGroup = new THREE.Group();
+    issInclinedPivot.add(this.issOrbitGroup);
+
+    this.issCraftGroup = new THREE.Group();
+    this.issCraftGroup.position.set(issOrbitR, 0, 0);
+    const trussMat = new THREE.MeshStandardMaterial({
+      color: 0xe2e8f0,
+      metalness: 0.85,
+      roughness: 0.25,
+    });
+    const solarPanelMat = new THREE.MeshStandardMaterial({
+      color: 0xd97706,
+      emissive: 0x78350f,
+      emissiveIntensity: 0.35,
+      metalness: 0.75,
+      roughness: 0.22,
+    });
+    const truss = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.018, 0.018), trussMat);
+    const coreMod = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.075, 10), trussMat);
+    coreMod.rotation.x = Math.PI / 2;
+    this.issCraftGroup.add(truss, coreMod);
+
+    [-0.068, -0.044, 0.044, 0.068].forEach((xOff) => {
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.003, 0.11), solarPanelMat);
+      wing.position.set(xOff, 0, 0);
+      this.issCraftGroup.add(wing);
+    });
+
+    // Invisible click hitbox so ISS is easy to click
+    const issHit = new THREE.Mesh(
+      new THREE.SphereGeometry(0.16, 10, 10),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    issHit.userData.bodyId = 'iss';
+    this.issCraftGroup.add(issHit);
+    this.clickableMeshes.push(issHit);
+    this.issOrbitGroup.add(this.issCraftGroup);
+
+    this.createLabel('iss', 'ISS · 408 km', this.issCraftGroup, 0.26, '#e2e8f0', ['tellurion']);
   }
 
   private buildTropicsOverlay(radius: number): THREE.Group {
@@ -925,6 +996,76 @@ export class SolarSystemScene {
     }
     this.asteroidBelt.instanceMatrix.needsUpdate = true;
     this.solarSystemGroup.add(this.asteroidBelt);
+
+    // Halley's Comet: high-eccentricity inclined Kepler orbit + sun-opposed cyan ion & golden dust tails
+    const halleyOrbitLine = this.buildKeplerOrbitLine('halley', '#67e8f9', 0.22);
+    this.solarSystemGroup.add(halleyOrbitLine);
+
+    this.halleyGroup = new THREE.Group();
+    const nucleus = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(0.18, 1),
+      new THREE.MeshStandardMaterial({
+        color: 0xe0f2fe,
+        emissive: 0x38bdf8,
+        emissiveIntensity: 0.9,
+        roughness: 0.6,
+      })
+    );
+    nucleus.userData.bodyId = 'halley';
+    this.halleyGroup.add(nucleus);
+    this.clickableMeshes.push(nucleus);
+
+    // Glowing cyan coma halo
+    const coma = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: createCoronaGlowTexture(),
+        color: 0x67e8f9,
+        transparent: true,
+        opacity: 0.72,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    coma.scale.set(1.5, 1.5, 1);
+    this.halleyGroup.add(coma);
+
+    // Straight blue ion tail (points directly along +Z away from Sun when oriented via lookAt)
+    const ionGeo = new THREE.ConeGeometry(0.45, 5.2, 20, 1, true);
+    ionGeo.translate(0, -2.6, 0);
+    ionGeo.rotateX(-Math.PI / 2);
+    this.halleyIonTail = new THREE.Mesh(
+      ionGeo,
+      new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.36,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    this.halleyGroup.add(this.halleyIonTail);
+
+    // Slightly angled wider warm dust tail
+    const dustGeo = new THREE.ConeGeometry(0.72, 3.8, 20, 1, true);
+    dustGeo.translate(0, -1.9, 0);
+    dustGeo.rotateX(-Math.PI / 2);
+    this.halleyDustTail = new THREE.Mesh(
+      dustGeo,
+      new THREE.MeshBasicMaterial({
+        color: 0xfde68a,
+        transparent: true,
+        opacity: 0.22,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    this.halleyDustTail.rotation.y = 0.16;
+    this.halleyGroup.add(this.halleyDustTail);
+
+    this.solarSystemGroup.add(this.halleyGroup);
+    this.createLabel('halley', 'Halley · 75y', this.halleyGroup, 0.9, '#67e8f9', ['solar']);
   }
 
   /**
@@ -1273,6 +1414,14 @@ export class SolarSystemScene {
       this.moonMesh.getWorldPosition(out);
       return true;
     }
+    if (bodyId === 'iss' && this.issCraftGroup) {
+      this.issCraftGroup.getWorldPosition(out);
+      return true;
+    }
+    if (bodyId === 'halley' && this.halleyGroup) {
+      this.halleyGroup.getWorldPosition(out);
+      return true;
+    }
     const rig = this.planetRigs.get(bodyId);
     if (rig) {
       rig.rootGroup.getWorldPosition(out);
@@ -1285,7 +1434,12 @@ export class SolarSystemScene {
     const scale = store.get().planetScale;
     const baseR = PLANET_DATA[bodyId].modelRadius * scale;
     const ringBoost = PLANET_DATA[bodyId].hasRings ? 1.55 : 1.0;
-    const dist = Math.max(3.6, baseR * 4.4 * ringBoost);
+    const dist =
+      bodyId === 'iss'
+        ? 1.15
+        : bodyId === 'halley'
+          ? 6.2
+          : Math.max(3.6, baseR * 4.4 * ringBoost);
 
     const sunPos = new THREE.Vector3(0, 1.2, 0);
     const toSun = sunPos.sub(bodyPos);
@@ -1458,6 +1612,20 @@ export class SolarSystemScene {
       gm.pivot.rotation.y = gm.phase + spinDay * 0.25 * gm.speed;
     });
 
+    // Halley's Comet: Kepler orbit + physically sun-opposed ion & dust tails (grow near perihelion!)
+    if (this.halleyGroup) {
+      const hPos = computePlanetPosition('halley', jd, 1.0);
+      this.halleyGroup.position.set(hPos.x, hPos.y + 1.2, hPos.z);
+      // Point -Z toward Sun so +Z tails extend strictly away from Sun
+      const sunWorld = new THREE.Vector3(0, 1.2, 0);
+      const awayTarget = this.halleyGroup.position.clone().multiplyScalar(2).sub(sunWorld);
+      this.halleyGroup.lookAt(awayTarget);
+      const distFromSun = Math.max(4, this.halleyGroup.position.distanceTo(sunWorld));
+      const tailScale = THREE.MathUtils.clamp(22 / distFromSun, 0.45, 2.2);
+      this.halleyIonTail.scale.set(1, 1, tailScale);
+      this.halleyDustTail.scale.set(1, 1, tailScale * 0.9);
+    }
+
     // Subtle mechanical escapement tick in Tellurion mode
     if (state.mode === 'tellurion' && Math.abs(eqDay - this.lastTickDay) >= 2.0) {
       this.lastTickDay = eqDay;
@@ -1593,6 +1761,12 @@ export class SolarSystemScene {
     // Slowly rotate asteroid belt
     if (this.asteroidBelt && this.solarSystemGroup.visible) {
       this.asteroidBelt.rotation.y = elapsed * 0.012;
+    }
+
+    // Smooth ISS orbital motion around Earth (gentle speed when focused)
+    if (this.issOrbitGroup) {
+      const issRate = state.selectedBody === 'iss' && state.cameraPreset === 'body' ? 0.14 : 0.42;
+      this.issOrbitGroup.rotation.y += delta * issRate * (state.isPlaying ? 1 : 0.15);
     }
 
     // Orbit-lock tracking for Earth, Surface view, or any focused Solar System planet

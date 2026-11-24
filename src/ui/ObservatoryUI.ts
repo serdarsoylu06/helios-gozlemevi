@@ -74,7 +74,7 @@ export class ObservatoryUI {
         meta: p.realScaleText,
         keywords: `${p.name} ${id} gezegen yörünge`.toLowerCase(),
         action: () => {
-          const isInner = id === 'sun' || id === 'earth' || id === 'moon';
+          const isInner = id === 'sun' || id === 'earth' || id === 'moon' || id === 'iss';
           const nextMode: SimMode =
             !isInner && store.get().mode === 'tellurion' ? 'solar' : store.get().mode;
           const preset: CameraPreset =
@@ -599,7 +599,7 @@ export class ObservatoryUI {
     this.root.querySelectorAll<HTMLButtonElement>('.body-pick-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         const id = btn.dataset.bodyPick as BodyId;
-        const isInner = id === 'sun' || id === 'earth' || id === 'moon';
+        const isInner = id === 'sun' || id === 'earth' || id === 'moon' || id === 'iss';
         const nextMode: SimMode =
           !isInner && store.get().mode === 'tellurion' ? 'solar' : store.get().mode;
         const preset: CameraPreset = id === 'sun' ? 'sun' : id === 'earth' ? 'earth' : 'body';

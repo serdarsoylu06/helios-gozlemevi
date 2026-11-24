@@ -1,4 +1,4 @@
-const CACHE_NAME = 'helios-observatory-v2';
+const CACHE_NAME = 'helios-observatory-v3';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

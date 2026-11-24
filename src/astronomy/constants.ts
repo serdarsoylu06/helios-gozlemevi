@@ -8,7 +8,9 @@ export type BodyId =
   | 'jupiter'
   | 'saturn'
   | 'uranus'
-  | 'neptune';
+  | 'neptune'
+  | 'iss'
+  | 'halley';
 
 export type SimMode = 'tellurion' | 'solar' | 'comparison';
 export type CameraPreset = 'default' | 'sun' | 'earth' | 'top' | 'surface' | 'body';
@@ -296,6 +298,50 @@ export const PLANET_DATA: Record<BodyId, CelestialBodyData> = {
     rotSpeed: 16.0,
     tiltDeg: 28.32,
     color: '#3b82f6',
+  },
+  iss: {
+    id: 'iss',
+    name: 'ISS (Uzay İstasyonu)',
+    badge: '408 km LEO',
+    desc: 'Dünya çevresinde 51.6° yörünge eğikliğiyle saatte 27.600 km hızla dönen Uluslararası Uzay İstasyonu; günde ~16 kez gün doğumu görür.',
+    dayText: '92.9 dk Tur',
+    yearText: '15.5 Tur/Gün',
+    realScaleText: '109 m Genişlik',
+    modelScaleText: 'Minyatür 3D',
+    realRadiusEarth: 0.01,
+    modelRadius: 0.14,
+    modelDistance: 1.42,
+    semiMajorAxisAU: 0.000045,
+    eccentricity: 0.0005,
+    inclinationDeg: 51.64,
+    orbitalPeriodDays: 0.0645,
+    meanLongitudeJ2000Deg: 0,
+    perihelionLonDeg: 0,
+    rotSpeed: 1,
+    tiltDeg: 0,
+    color: '#e2e8f0',
+  },
+  halley: {
+    id: 'halley',
+    name: 'Halley Kuyruklu Yıldızı',
+    badge: 'e = 0.967',
+    desc: 'Her ~75.3 yılda bir Güneş\'e yaklaşan ünlü periyodik kuyruklu yıldız. Güneş rüzgârı nedeniyle mavi iyon kuyruğu her zaman Güneş\'in ters yönüne uzanır.',
+    dayText: '2.2 Gün',
+    yearText: '75.3 Yıl',
+    realScaleText: '11 km Çekirdek',
+    modelScaleText: 'Eliptik Kuyruk',
+    realRadiusEarth: 0.001,
+    modelRadius: 0.22,
+    modelDistance: 24.0,
+    semiMajorAxisAU: 17.83,
+    eccentricity: 0.68,
+    inclinationDeg: 18.0,
+    orbitalPeriodDays: 27510.0,
+    meanLongitudeJ2000Deg: 145.0,
+    perihelionLonDeg: 111.3,
+    rotSpeed: 4,
+    tiltDeg: 0,
+    color: '#67e8f9',
   },
 };
 

@@ -145,7 +145,9 @@ export function createCalendarDialTexture(): THREE.CanvasTexture {
   const cx = 512;
   const cy = 512;
 
-  const dayToAngle = (d: number) => -Math.PI / 2 - (d / 365.25) * Math.PI * 2;
+  // CircleGeometry rotated -PI/2 around X maps canvas angle 0 (+X) -> world +X (March 21)
+  // and angle -PI/2 (12 o'clock, +Y) -> world -Z (June 21, +90° CCW orbit).
+  const dayToAngle = (d: number) => -(d / 365.25) * Math.PI * 2;
 
   // Transparent background for sleek holographic glass ring
   ctx.clearRect(0, 0, 1024, 1024);
@@ -350,30 +352,32 @@ export function createMilkyWaySkyboxTexture(): THREE.CanvasTexture {
   const ctx = canvas.getContext('2d')!;
 
   // Deep obsidian space base
-  ctx.fillStyle = '#02040a';
+  ctx.fillStyle = '#010308';
   ctx.fillRect(0, 0, 2048, 1024);
 
-  // Tilted galactic band across the sky sphere
-  for (let i = 0; i < 160; i++) {
-    const t = i / 160;
+  // Broad subtle galactic glow band
+  for (let i = 0; i < 220; i++) {
+    const t = i / 220;
     const x = t * 2048;
-    const wave = Math.sin(t * Math.PI * 2 + 0.6) * 210;
-    const y = 512 + wave + (((i * 73) % 90) - 45);
-    const r = 90 + (i % 130);
+    const wave = Math.sin(t * Math.PI * 2 + 0.55) * 205;
+    const spread = (((i * 73) % 110) - 55);
+    const y = 512 + wave + spread;
+    const r = 85 + (i % 145);
 
     const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-    if (i % 5 === 0) {
-      // Warm galactic core amber/indigo dust
-      g.addColorStop(0, 'rgba(139, 92, 246, 0.08)');
-      g.addColorStop(0.5, 'rgba(30, 58, 138, 0.05)');
+    // Galactic core region around t = 0.45..0.62 has warmer amber-gold bulge
+    const isCore = t > 0.44 && t < 0.62;
+    if (isCore && i % 2 === 0) {
+      g.addColorStop(0, 'rgba(232, 184, 90, 0.085)');
+      g.addColorStop(0.45, 'rgba(139, 92, 246, 0.05)');
       g.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    } else if (i % 7 === 0) {
-      g.addColorStop(0, 'rgba(217, 119, 6, 0.065)');
-      g.addColorStop(0.55, 'rgba(79, 70, 229, 0.04)');
+    } else if (i % 5 === 0) {
+      g.addColorStop(0, 'rgba(129, 140, 248, 0.075)');
+      g.addColorStop(0.5, 'rgba(30, 58, 138, 0.045)');
       g.addColorStop(1, 'rgba(0, 0, 0, 0)');
     } else {
-      g.addColorStop(0, 'rgba(56, 189, 248, 0.055)');
-      g.addColorStop(0.5, 'rgba(30, 41, 82, 0.045)');
+      g.addColorStop(0, 'rgba(56, 189, 248, 0.05)');
+      g.addColorStop(0.5, 'rgba(30, 41, 82, 0.04)');
       g.addColorStop(1, 'rgba(0, 0, 0, 0)');
     }
     ctx.fillStyle = g;
@@ -382,15 +386,36 @@ export function createMilkyWaySkyboxTexture(): THREE.CanvasTexture {
     ctx.fill();
   }
 
-  // Subtle dark cosmic dust rift down the center of the Milky Way
-  for (let i = 0; i < 65; i++) {
-    const t = i / 65;
+  // Dense unresolved galactic starlight dust speckles along the Milky Way plane
+  let rng = 1337;
+  const nextRand = () => {
+    rng = (rng * 16807) % 2147483647;
+    return (rng - 1) / 2147483646;
+  };
+  for (let i = 0; i < 2400; i++) {
+    const t = nextRand();
+    const offsetNorm = (nextRand() + nextRand() - 1); // triangular bell curve
     const x = t * 2048;
-    const y = 512 + Math.sin(t * Math.PI * 2 + 0.6) * 210;
-    const r = 35 + (i % 45);
+    const y = 512 + Math.sin(t * Math.PI * 2 + 0.55) * 205 + offsetNorm * 145;
+    const size = i % 10 === 0 ? 1.4 : 0.85;
+    const alpha = 0.05 + (1 - Math.abs(offsetNorm)) * 0.16;
+    ctx.fillStyle =
+      t > 0.44 && t < 0.62 && i % 3 === 0
+        ? `rgba(254, 243, 199, ${alpha.toFixed(2)})`
+        : `rgba(203, 225, 255, ${alpha.toFixed(2)})`;
+    ctx.fillRect(x, y, size, size);
+  }
+
+  // Dark cosmic dust rift (Great Rift) bisecting the galactic plane
+  for (let i = 0; i < 95; i++) {
+    const t = i / 95;
+    const x = t * 2048;
+    const y = 512 + Math.sin(t * Math.PI * 2 + 0.55) * 205 + Math.sin(i * 1.7) * 14;
+    const r = 28 + (i % 42);
     const d = ctx.createRadialGradient(x, y, 0, x, y, r);
-    d.addColorStop(0, 'rgba(2, 4, 10, 0.45)');
-    d.addColorStop(1, 'rgba(2, 4, 10, 0)');
+    d.addColorStop(0, 'rgba(1, 3, 8, 0.58)');
+    d.addColorStop(0.6, 'rgba(1, 3, 8, 0.22)');
+    d.addColorStop(1, 'rgba(1, 3, 8, 0)');
     ctx.fillStyle = d;
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
