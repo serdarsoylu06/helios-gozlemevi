@@ -214,56 +214,62 @@ export class ObservatoryUI {
         </div>
       </div>
 
-      <!-- Üst Minimal Gözlemevi Barı -->
-      <header class="absolute top-3 left-3 right-3 md:top-4 md:left-5 md:right-5 flex items-center justify-between gap-2 pointer-events-none">
-        <!-- Sol Marka + Canlı Tarih Damgası -->
-        <div class="obs-glass px-3 py-1.5 rounded-xl pointer-events-auto flex items-center gap-2.5">
-          <div class="w-6 h-6 rounded-lg bg-amber-400/15 border border-amber-400/35 flex items-center justify-center shrink-0">
-            <svg class="w-3.5 h-3.5 text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <circle cx="12" cy="12" r="4"/>
-              <path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41"/>
-            </svg>
+      <!-- Üst Gözlemevi Barı (Mobilde taşmayan 2 katmanlı, masaüstünde tek satır) -->
+      <header class="safe-top absolute top-2.5 left-3 right-3 md:top-4 md:left-5 md:right-5 flex flex-col md:flex-row md:items-center md:justify-between gap-2 pointer-events-none z-20">
+        <!-- Satır 1 (Mobilde Marka + Aksiyonlar yan yana; masaüstünde ayrılır) -->
+        <div class="flex items-center justify-between gap-2 w-full md:w-auto md:contents">
+          <!-- Sol Marka + Canlı Tarih Damgası -->
+          <div class="obs-glass px-2.5 sm:px-3 py-1.5 rounded-xl pointer-events-auto flex items-center gap-2 min-w-0 md:order-1">
+            <div class="w-6 h-6 rounded-lg bg-amber-400/15 border border-amber-400/35 flex items-center justify-center shrink-0">
+              <svg class="w-3.5 h-3.5 text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41"/>
+              </svg>
+            </div>
+            <div class="flex items-center gap-1.5 sm:gap-2 min-w-0">
+              <span class="font-display text-[11px] sm:text-xs font-bold tracking-[0.14em] text-white shrink-0">HELIOS</span>
+              <span class="h-3 w-px bg-white/15 shrink-0"></span>
+              <span id="ui-top-date" class="text-[10.5px] sm:text-[11px] font-mono-num text-amber-200/90 truncate">21 Mart 2026</span>
+              <span id="ui-tex-badge" class="hidden lg:inline-flex items-center gap-1 text-[9.5px] font-mono-num uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/[0.05] text-slate-300 border border-white/10">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-300 animate-pulse"></span>2K
+              </span>
+            </div>
           </div>
-          <div class="flex items-center gap-2">
-            <span class="font-display text-xs font-bold tracking-[0.14em] text-white">HELIOS</span>
-            <span class="h-3 w-px bg-white/15 hidden sm:inline-block"></span>
-            <span id="ui-top-date" class="hidden sm:inline text-[11px] font-mono-num text-amber-200/90">21 Mart 2026</span>
-            <span id="ui-tex-badge" class="hidden lg:inline-flex items-center gap-1 text-[9.5px] font-mono-num uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/[0.05] text-slate-300 border border-white/10">
-              <span class="w-1.5 h-1.5 rounded-full bg-amber-300 animate-pulse"></span>2K
-            </span>
+
+          <!-- Sağ Hızlı Aksiyonlar -->
+          <div class="obs-glass p-1 rounded-xl pointer-events-auto flex items-center gap-0.5 shrink-0 md:order-3">
+            <button id="btn-open-palette" title="Hızlı Arama (Ctrl+K)" aria-label="Hızlı Arama" class="px-2 sm:px-2.5 py-1.5 rounded-lg text-[11px] font-mono-num text-slate-300 hover:text-white hover:bg-white/10 transition flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5 text-amber-300/90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <span class="hidden md:inline text-slate-400">⌘K</span>
+            </button>
+            <button id="btn-snapshot" title="Yüksek Çözünürlüklü PNG Kaydet" aria-label="Ekran Görüntüsü Al" class="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+            </button>
+            <button id="btn-start-tour" title="Rehberli Tur" aria-label="Rehberli Tur" class="p-1.5 sm:px-2 py-1.5 rounded-lg text-[11px] font-medium text-amber-200 hover:bg-amber-400/15 transition flex items-center gap-1">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 6.91-1.01z"/></svg>
+              <span class="hidden lg:inline">Tur</span>
+            </button>
+            <button id="btn-presentation" title="Sunum / Planetaryum Modu (H)" aria-label="Sunum Modu" class="px-2 py-1.5 rounded-lg text-[11px] font-mono-num text-slate-300 hover:text-white hover:bg-white/10 transition">
+              H
+            </button>
           </div>
         </div>
 
-        <!-- Orta Mod Seçici -->
-        <div class="obs-glass p-1 rounded-full pointer-events-auto flex items-center gap-0.5" role="group" aria-label="Simülasyon Modu">
-          <button data-mode="tellurion" class="mode-btn px-3 py-1 rounded-full text-[11px] font-semibold transition-all">Tellurion</button>
-          <button data-mode="solar" class="mode-btn px-3 py-1 rounded-full text-[11px] font-semibold transition-all">Güneş Sistemi</button>
-          <button data-mode="comparison" class="mode-btn px-3 py-1 rounded-full text-[11px] font-semibold transition-all">109x</button>
-        </div>
-
-        <!-- Sağ Hızlı Aksiyonlar -->
-        <div class="obs-glass p-1 rounded-xl pointer-events-auto flex items-center gap-0.5">
-          <button id="btn-open-palette" title="Hızlı Arama (Ctrl+K)" aria-label="Hızlı Arama" class="px-2.5 py-1.5 rounded-lg text-[11px] font-mono-num text-slate-300 hover:text-white hover:bg-white/10 transition flex items-center gap-1.5">
-            <svg class="w-3.5 h-3.5 text-amber-300/90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-            <span class="hidden md:inline text-slate-400">⌘K</span>
-          </button>
-          <button id="btn-snapshot" title="Yüksek Çözünürlüklü PNG Kaydet" aria-label="Ekran Görüntüsü Al" class="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition">
-            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
-          </button>
-          <button id="btn-start-tour" title="Rehberli Tur" aria-label="Rehberli Tur" class="px-2 py-1.5 rounded-lg text-[11px] font-medium text-amber-200 hover:bg-amber-400/15 transition flex items-center gap-1">
-            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 6.91-1.01z"/></svg>
-            <span class="hidden lg:inline">Tur</span>
-          </button>
-          <button id="btn-presentation" title="Sunum / Planetaryum Modu (H)" aria-label="Sunum Modu" class="px-2 py-1.5 rounded-lg text-[11px] font-mono-num text-slate-300 hover:text-white hover:bg-white/10 transition">
-            H
-          </button>
+        <!-- Orta Mod Seçici (Mobilde temiz tek satır, ortalanmış) -->
+        <div class="obs-glass p-1 rounded-full pointer-events-auto flex items-center justify-center gap-0.5 self-center md:order-2" role="group" aria-label="Simülasyon Modu">
+          <button data-mode="tellurion" class="mode-btn whitespace-nowrap px-3 py-1 rounded-full text-[11px] font-semibold transition-all">Tellurion</button>
+          <button data-mode="solar" class="mode-btn whitespace-nowrap px-3 py-1 rounded-full text-[11px] font-semibold transition-all"><span class="sm:hidden">Sistem</span><span class="hidden sm:inline">Güneş Sistemi</span></button>
+          <button data-mode="comparison" class="mode-btn whitespace-nowrap px-3 py-1 rounded-full text-[11px] font-semibold transition-all">109x</button>
         </div>
       </header>
 
-      <!-- Sol İnce İkon Şeridi + Tek Sekmeli Cam Çekmece -->
-      <aside class="absolute top-16 md:top-20 left-3 md:left-5 bottom-24 pointer-events-none flex items-start gap-2.5 z-20">
-        <!-- İnce İkon Şeridi (Rail) -->
-        <nav class="obs-glass p-1.5 rounded-2xl pointer-events-auto flex flex-col gap-1" aria-label="Gözlemevi Araçları">
+      <!-- Mobil Bottom Sheet Arka Plan Karartması -->
+      <div id="mobile-sheet-backdrop" class="hidden md:hidden fixed inset-0 z-30 bg-black/45 backdrop-blur-[2px] pointer-events-auto"></div>
+
+      <!-- Masaüstü Sol İnce İkon Şeridi + Tek Sekmeli Cam Çekmece (Mobilde Bottom Sheet) -->
+      <aside class="md:absolute md:top-20 md:left-5 md:bottom-24 pointer-events-none flex items-start gap-2.5 z-40 md:z-20">
+        <!-- İnce İkon Şeridi (Yalnızca Masaüstü >= 768px) -->
+        <nav class="hidden md:flex obs-glass p-1.5 rounded-2xl pointer-events-auto flex-col gap-1" aria-label="Gözlemevi Araçları">
           <button data-tab="ephemeris" title="Efemeris & Tutulmalar" aria-label="Efemeris ve Tutulmalar" class="rail-btn">
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
           </button>
@@ -278,11 +284,15 @@ export class ObservatoryUI {
           </button>
         </nav>
 
-        <!-- Açılır Tek Cam Çekmece -->
-        <div id="obs-drawer" class="hidden obs-glass rounded-2xl pointer-events-auto w-[290px] sm:w-[320px] max-h-full flex flex-col overflow-hidden">
-          <div class="flex items-center justify-between px-3.5 py-2.5 border-b border-white/10 shrink-0">
+        <!-- Açılır Tek Cam Çekmece (Mobilde alttan açılan Bottom Sheet, masaüstünde sol çekmece) -->
+        <div id="obs-drawer" class="hidden obs-glass pointer-events-auto fixed inset-x-0 bottom-0 z-40 rounded-t-3xl max-h-[65dvh] safe-bottom md:static md:rounded-2xl md:w-[320px] md:max-h-full md:pb-0 flex flex-col overflow-hidden">
+          <!-- Mobil Tutamaç Çubuğu -->
+          <div class="md:hidden flex justify-center pt-2.5 pb-0.5 shrink-0">
+            <span class="w-10 h-1 rounded-full bg-white/25"></span>
+          </div>
+          <div class="flex items-center justify-between px-4 md:px-3.5 py-2.5 border-b border-white/10 shrink-0">
             <span id="ui-drawer-title" class="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-amber-300/90">Efemeris</span>
-            <button id="btn-close-drawer" aria-label="Paneli kapat" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition text-xs">✕</button>
+            <button id="btn-close-drawer" aria-label="Paneli kapat" class="text-slate-400 hover:text-white px-2 py-1 rounded-lg hover:bg-white/10 transition text-xs">✕</button>
           </div>
 
           <div class="hud-scroll overflow-y-auto p-3.5 space-y-3">
@@ -379,12 +389,12 @@ export class ObservatoryUI {
                 </div>
               </div>
 
-              <button data-cam="surface" class="cam-btn w-full py-2 px-3 rounded-xl bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/35 text-xs font-semibold text-amber-100 transition flex items-center justify-center gap-2">
+              <button data-cam="surface" class="cam-btn w-full py-2.5 px-3 rounded-xl bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/35 text-xs font-semibold text-amber-100 transition flex items-center justify-center gap-2">
                 <span>Yüzeyden Bakışa Geç (Pin)</span>
               </button>
 
               <p class="text-[10px] text-slate-400 leading-relaxed">
-                İpucu: Dünya seçiliyken küre üzerinde herhangi bir noktaya tıklayarak kendi enlem/boylam pinini bırakabilirsin.
+                İpucu: Dünya seçiliyken küre üzerinde herhangi bir noktaya dokunarak kendi enlem/boylam pinini bırakabilirsin.
               </p>
             </div>
 
@@ -441,7 +451,7 @@ export class ObservatoryUI {
       </aside>
 
       <!-- Rehberli Tur Kartı (Üst Orta) -->
-      <div id="ui-tour-card" class="hidden absolute top-16 left-1/2 -translate-x-1/2 w-[92vw] max-w-md obs-glass p-4 rounded-2xl pointer-events-auto border border-amber-400/40 z-30">
+      <div id="ui-tour-card" class="hidden absolute top-24 md:top-16 left-1/2 -translate-x-1/2 w-[92vw] max-w-md obs-glass p-4 rounded-2xl pointer-events-auto border border-amber-400/40 z-30">
         <div class="flex items-start justify-between gap-2 mb-1">
           <div>
             <div id="ui-tour-sub" class="text-[10px] font-mono-num uppercase tracking-wider text-amber-300"></div>
@@ -451,30 +461,36 @@ export class ObservatoryUI {
         </div>
         <p id="ui-tour-body" class="text-xs text-slate-300 leading-relaxed mb-3"></p>
         <div class="flex items-center justify-between gap-2">
-          <button id="btn-tour-prev" class="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-slate-200 transition">← Önceki</button>
-          <button id="btn-tour-next" class="px-3.5 py-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-xs font-semibold text-slate-950 transition">Sonraki →</button>
+          <button id="btn-tour-prev" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-slate-200 transition">← Önceki</button>
+          <button id="btn-tour-next" class="px-3.5 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-xs font-semibold text-slate-950 transition">Sonraki →</button>
         </div>
       </div>
 
-      <!-- Alt İnce Yüzen Zaman Çarkı (Floating Scrubber Dock) -->
-      <footer class="absolute bottom-3 left-3 right-3 md:bottom-4 md:left-5 md:right-5 pointer-events-none flex justify-center z-20">
-        <div class="obs-glass w-full max-w-3xl px-3.5 py-2.5 rounded-2xl pointer-events-auto flex flex-col gap-2">
-          <div class="flex items-center gap-2.5">
-            <button id="btn-play" class="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-semibold text-xs flex items-center gap-1.5 transition active:scale-95 shrink-0">
+      <!-- Alt Yüzen Zaman Çarkı + Mobil Başparmak Sekme Çubuğu -->
+      <footer class="safe-bottom absolute bottom-0 left-0 right-0 px-3 md:bottom-4 md:left-5 md:right-5 md:px-0 md:pb-0 pointer-events-none flex justify-center z-20">
+        <div class="obs-glass w-full max-w-3xl px-3 py-2 md:px-3.5 md:py-2.5 rounded-2xl pointer-events-auto flex flex-col gap-2">
+          <!-- Zaman Çarkı Satırı -->
+          <div class="flex items-center gap-2 md:gap-2.5">
+            <button id="btn-play" class="px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-semibold text-xs flex items-center gap-1.5 transition active:scale-95 shrink-0">
               <span id="ui-play-icon" class="inline-flex">${ICON_PAUSE}</span>
               <span id="ui-play-text" class="hidden sm:inline">Duraklat</span>
             </button>
-            <button id="btn-step-back" class="px-2 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/10 border border-white/10 text-[10.5px] font-mono-num text-slate-300 transition shrink-0">-15g</button>
+            <button id="btn-step-back" class="px-2 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/10 border border-white/10 text-[10px] font-mono-num text-slate-300 transition shrink-0">-15g</button>
             <div class="flex-1 flex flex-col gap-0.5 min-w-0">
               <input id="timeline-slider" type="range" min="0" max="365.25" step="0.25" value="0" aria-label="Yıllık yörünge zaman çarkı" class="w-full" />
-              <div class="flex justify-between text-[8.5px] font-mono-num text-slate-400 px-0.5">
-                <span>21 MAR</span><span>21 HAZ</span><span>23 EYL</span><span>21 ARA</span><span>21 MAR</span>
+              <div class="flex justify-between text-[8px] sm:text-[8.5px] font-mono-num text-slate-400 px-0.5">
+                <span><span class="hidden sm:inline">21 </span>MAR</span>
+                <span><span class="hidden sm:inline">21 </span>HAZ</span>
+                <span><span class="hidden sm:inline">23 </span>EYL</span>
+                <span><span class="hidden sm:inline">21 </span>ARA</span>
+                <span><span class="hidden sm:inline">21 </span>MAR</span>
               </div>
             </div>
-            <button id="btn-step-fwd" class="px-2 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/10 border border-white/10 text-[10.5px] font-mono-num text-slate-300 transition shrink-0">+15g</button>
+            <button id="btn-step-fwd" class="px-2 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/10 border border-white/10 text-[10px] font-mono-num text-slate-300 transition shrink-0">+15g</button>
           </div>
 
-          <div class="flex items-center justify-between gap-4 pt-1 border-t border-white/[0.07] text-[10.5px]">
+          <!-- Hız & Ölçek Satırı -->
+          <div class="flex items-center justify-between gap-3 md:gap-4 pt-1 border-t border-white/[0.07] text-[10px] sm:text-[10.5px]">
             <div class="flex items-center gap-2 flex-1 max-w-[200px]">
               <label for="ui-speed" class="text-slate-400 shrink-0">Hız</label>
               <input id="ui-speed" type="range" min="0.1" max="4" step="0.1" value="1.0" class="w-full" />
@@ -493,6 +509,26 @@ export class ObservatoryUI {
               <span id="ui-scale-val" class="font-mono-num text-slate-200 w-7 text-right">1.0x</span>
             </div>
           </div>
+
+          <!-- Mobil Alt Sekme Çubuğu (Yalnızca < 768px, başparmak bölgesi) -->
+          <nav class="md:hidden grid grid-cols-4 gap-1 pt-1.5 border-t border-white/[0.08]" aria-label="Mobil Gözlemevi Sekmeleri">
+            <button data-tab="ephemeris" class="mobile-tab-btn">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+              <span class="text-[9.5px] font-medium">Efemeris</span>
+            </button>
+            <button data-tab="location" class="mobile-tab-btn">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+              <span class="text-[9.5px] font-medium">Konum</span>
+            </button>
+            <button data-tab="body" class="mobile-tab-btn">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="7"/><ellipse cx="12" cy="12" rx="11" ry="4" transform="rotate(-24 12 12)"/></svg>
+              <span class="text-[9.5px] font-medium">Cisim</span>
+            </button>
+            <button data-tab="layers" class="mobile-tab-btn">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+              <span class="text-[9.5px] font-medium">Katman</span>
+            </button>
+          </nav>
         </div>
       </footer>
 
@@ -567,8 +603,8 @@ export class ObservatoryUI {
       });
     });
 
-    // Left rail tabs
-    this.root.querySelectorAll<HTMLButtonElement>('.rail-btn').forEach((btn) => {
+    // Desktop left rail & Mobile bottom tab bar
+    this.root.querySelectorAll<HTMLButtonElement>('.rail-btn, .mobile-tab-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         const tab = btn.dataset.tab as DrawerTab;
         const current = store.get().activeDrawerTab;
@@ -580,16 +616,21 @@ export class ObservatoryUI {
       store.set({ activeDrawerTab: null });
     });
 
+    document.getElementById('mobile-sheet-backdrop')!.addEventListener('click', () => {
+      store.set({ activeDrawerTab: null });
+    });
+
     // Camera buttons
     this.root.querySelectorAll<HTMLButtonElement>('.cam-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         const preset = btn.dataset.cam as CameraPreset;
+        const closeMobile = window.innerWidth < 768 ? { activeDrawerTab: null as DrawerTab } : {};
         if (preset === 'earth' || preset === 'surface') {
-          store.set({ selectedBody: 'earth', cameraPreset: preset });
+          store.set({ selectedBody: 'earth', cameraPreset: preset, ...closeMobile });
         } else if (preset === 'sun') {
-          store.set({ selectedBody: 'sun', cameraPreset: preset });
+          store.set({ selectedBody: 'sun', cameraPreset: preset, ...closeMobile });
         } else {
-          store.set({ cameraPreset: preset });
+          store.set({ cameraPreset: preset, ...closeMobile });
         }
         this.onFocusCamera(preset);
       });
@@ -603,7 +644,8 @@ export class ObservatoryUI {
         const nextMode: SimMode =
           !isInner && store.get().mode === 'tellurion' ? 'solar' : store.get().mode;
         const preset: CameraPreset = id === 'sun' ? 'sun' : id === 'earth' ? 'earth' : 'body';
-        store.set({ mode: nextMode, selectedBody: id, cameraPreset: preset });
+        const closeMobile = window.innerWidth < 768 ? { activeDrawerTab: null as DrawerTab } : {};
+        store.set({ mode: nextMode, selectedBody: id, cameraPreset: preset, ...closeMobile });
         this.onFocusCamera(preset, id);
       });
     });
@@ -614,11 +656,13 @@ export class ObservatoryUI {
         const iso = btn.dataset.jump;
         const target = (btn.dataset.target as BodyId) || 'earth';
         if (!iso) return;
+        const closeMobile = window.innerWidth < 768 ? { activeDrawerTab: null as DrawerTab } : {};
         store.set({
           mode: 'tellurion',
           isPlaying: false,
           jd: dateToJulianDate(new Date(iso)),
           selectedBody: target,
+          ...closeMobile,
         });
       });
     });
@@ -814,9 +858,10 @@ export class ObservatoryUI {
       }
     }
 
-    // Drawer tab & rail state
+    // Drawer tab, desktop rail & mobile bottom sheet state
     if (changed.has('activeDrawerTab')) {
       const drawer = document.getElementById('obs-drawer')!;
+      const backdrop = document.getElementById('mobile-sheet-backdrop')!;
       const titleEl = document.getElementById('ui-drawer-title')!;
       const tabTitles: Record<Exclude<DrawerTab, null>, string> = {
         ephemeris: 'Kepler Efemeris',
@@ -825,12 +870,14 @@ export class ObservatoryUI {
         layers: 'Kamera & Katmanlar',
       };
 
-      drawer.classList.toggle('hidden', state.activeDrawerTab === null);
+      const isOpen = state.activeDrawerTab !== null;
+      drawer.classList.toggle('hidden', !isOpen);
+      backdrop.classList.toggle('hidden', !isOpen);
       if (state.activeDrawerTab) {
         titleEl.textContent = tabTitles[state.activeDrawerTab];
       }
 
-      this.root.querySelectorAll<HTMLButtonElement>('.rail-btn').forEach((btn) => {
+      this.root.querySelectorAll<HTMLButtonElement>('.rail-btn, .mobile-tab-btn').forEach((btn) => {
         btn.classList.toggle('is-active', btn.dataset.tab === state.activeDrawerTab);
       });
       this.root.querySelectorAll<HTMLElement>('.drawer-panel').forEach((panel) => {
@@ -843,8 +890,8 @@ export class ObservatoryUI {
       this.root.querySelectorAll<HTMLButtonElement>('.mode-btn').forEach((btn) => {
         const active = btn.dataset.mode === state.mode;
         btn.className = active
-          ? 'mode-btn px-3 py-1 rounded-full text-[11px] font-semibold transition-all bg-amber-400 text-slate-950 shadow-sm'
-          : 'mode-btn px-3 py-1 rounded-full text-[11px] font-medium transition-all text-slate-300 hover:text-white hover:bg-white/5';
+          ? 'mode-btn whitespace-nowrap px-3 py-1 rounded-full text-[11px] font-semibold transition-all bg-amber-400 text-slate-950 shadow-sm'
+          : 'mode-btn whitespace-nowrap px-3 py-1 rounded-full text-[11px] font-medium transition-all text-slate-300 hover:text-white hover:bg-white/5';
       });
     }
 

@@ -279,6 +279,50 @@ input[type='range']::-webkit-slider-thumb:hover {
   pointer-events: none;
 }
 
+/* Mobile Bottom Tab Bar & Sheet */
+.mobile-tab-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 5px 4px;
+  border-radius: 10px;
+  color: rgba(148, 163, 184, 0.88);
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+.mobile-tab-btn.is-active {
+  color: #fde68a;
+  background: rgba(232, 184, 90, 0.14);
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.safe-bottom {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+}
+
+@media (max-width: 767px) {
+  input[type='range']::-webkit-slider-thumb {
+    height: 16px;
+    width: 16px;
+    margin-top: -6.5px;
+  }
+  .planet-stem {
+    width: 8px;
+  }
+  .planet-tag {
+    padding: 1.5px 5px;
+  }
+  .planet-name {
+    font-size: 9.5px;
+  }
+  .planet-meta {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.01ms !important;

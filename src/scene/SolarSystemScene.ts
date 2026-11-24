@@ -182,13 +182,19 @@ export class SolarSystemScene {
   private initRendererAndScene(): void {
     this.scene = new THREE.Scene();
 
+    const aspect = window.innerWidth / window.innerHeight;
+    const isPortrait = aspect < 0.85;
     this.camera = new THREE.PerspectiveCamera(
-      44,
-      window.innerWidth / window.innerHeight,
+      isPortrait ? 54 : 44,
+      aspect,
       0.08,
       1800
     );
-    this.camera.position.set(19, 13, 19);
+    if (isPortrait) {
+      this.camera.position.set(30, 24, 36);
+    } else {
+      this.camera.position.set(19, 13, 19);
+    }
 
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -1374,12 +1380,25 @@ export class SolarSystemScene {
       this.syncTellurionDrop();
     }
 
+    const isPortrait = window.innerWidth / window.innerHeight < 0.85;
     if (isComparison) {
-      this.startCameraFlight(new THREE.Vector3(14, 5.5, 36), new THREE.Vector3(14, 0, 0), 0.95);
+      this.startCameraFlight(
+        isPortrait ? new THREE.Vector3(14, 9, 54) : new THREE.Vector3(14, 5.5, 36),
+        new THREE.Vector3(14, 0, 0),
+        instant ? 0.01 : 0.95
+      );
     } else if (isSolar) {
-      this.startCameraFlight(new THREE.Vector3(0, 42, 68), new THREE.Vector3(0, 1.2, 0), 1.1);
+      this.startCameraFlight(
+        isPortrait ? new THREE.Vector3(0, 62, 92) : new THREE.Vector3(0, 42, 68),
+        new THREE.Vector3(0, 1.2, 0),
+        instant ? 0.01 : 1.1
+      );
     } else {
-      this.startCameraFlight(new THREE.Vector3(19, 13, 19), new THREE.Vector3(4.5, 0.2, 0), 1.0);
+      this.startCameraFlight(
+        isPortrait ? new THREE.Vector3(30, 24, 36) : new THREE.Vector3(19, 13, 19),
+        isPortrait ? new THREE.Vector3(7.2, 0.2, 0) : new THREE.Vector3(4.5, 0.2, 0),
+        instant ? 0.01 : 1.0
+      );
     }
   }
 
@@ -1706,7 +1725,9 @@ export class SolarSystemScene {
     });
 
     window.addEventListener('resize', () => {
-      this.camera.aspect = window.innerWidth / window.innerHeight;
+      const aspect = window.innerWidth / window.innerHeight;
+      this.camera.aspect = aspect;
+      this.camera.fov = aspect < 0.85 ? 54 : 44;
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(window.innerWidth, window.innerHeight);
       this.composer.setSize(window.innerWidth, window.innerHeight);
