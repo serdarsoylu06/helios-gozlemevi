@@ -695,9 +695,14 @@ export class SolarSystemScene {
     div.onclick = (e) => {
       e.stopPropagation();
       const bodyId = id.replace('cmp-', '') as BodyId;
-      store.set({ selectedBody: bodyId });
-      if (store.get().mode === 'solar') {
-        this.focusCamera('body', bodyId);
+      const mode = store.get().mode;
+      if (mode === 'solar') {
+        const preset: CameraPreset =
+          bodyId === 'sun' ? 'sun' : bodyId === 'earth' ? 'earth' : 'body';
+        store.set({ selectedBody: bodyId, cameraPreset: preset });
+        this.focusCamera(preset, bodyId);
+      } else {
+        store.set({ selectedBody: bodyId });
       }
     };
     this.labelsContainer.appendChild(div);
@@ -788,6 +793,48 @@ export class SolarSystemScene {
     this.tellurion.armHardwareGroup.position.y = -t * 14;
   }
 
+  private getBodyWorldPosition(bodyId: BodyId, out: THREE.Vector3): boolean {
+    if (bodyId === 'sun') {
+      this.sunMesh.getWorldPosition(out);
+      return true;
+    }
+    if (bodyId === 'earth') {
+      this.earthTiltGroup.getWorldPosition(out);
+      return true;
+    }
+    if (bodyId === 'moon') {
+      this.moonMesh.getWorldPosition(out);
+      return true;
+    }
+    const rig = this.planetRigs.get(bodyId);
+    if (rig) {
+      rig.rootGroup.getWorldPosition(out);
+      return true;
+    }
+    return false;
+  }
+
+  private computeLitCameraOffset(bodyId: BodyId, bodyPos: THREE.Vector3): THREE.Vector3 {
+    const scale = store.get().planetScale;
+    const baseR = PLANET_DATA[bodyId].modelRadius * scale;
+    const ringBoost = PLANET_DATA[bodyId].hasRings ? 1.55 : 1.0;
+    const dist = Math.max(3.6, baseR * 4.4 * ringBoost);
+
+    const sunPos = new THREE.Vector3(0, 1.2, 0);
+    const toSun = sunPos.sub(bodyPos);
+    if (toSun.lengthSq() < 0.01) {
+      return new THREE.Vector3(dist * 0.7, dist * 0.4, dist * 0.7);
+    }
+    toSun.normalize();
+    const side = new THREE.Vector3(-toSun.z, 0, toSun.x).normalize();
+
+    // Illuminated 3/4 view angle: shows sunlit hemisphere + crisp terminator without looking into the Sun
+    return new THREE.Vector3()
+      .addScaledVector(side, dist * 0.74)
+      .addScaledVector(toSun, dist * 0.52)
+      .add(new THREE.Vector3(0, dist * 0.34, 0));
+  }
+
   public focusCamera(preset: CameraPreset, bodyId: BodyId = store.get().selectedBody): void {
     const state = store.get();
     if (state.mode === 'comparison') {
@@ -805,12 +852,9 @@ export class SolarSystemScene {
       const earthPos = new THREE.Vector3();
       this.earthTiltGroup.getWorldPosition(earthPos);
       this.desiredTarget.copy(earthPos);
-      // Position camera slightly sun-ward so day/night terminator + city lights are both visible!
-      const toSun = new THREE.Vector3(0, 1.2, 0).sub(earthPos).normalize();
-      const side = new THREE.Vector3(-toSun.z, 0.35, toSun.x).normalize();
-      this.desiredCamPos = earthPos.clone().addScaledVector(side, 4.8).addScaledVector(toSun, 1.8);
+      this.desiredCamPos = earthPos.clone().add(this.computeLitCameraOffset('earth', earthPos));
     } else if (preset === 'surface') {
-      // "Yüzeyden Bakış": Close orbital vantage right above the selected City Pin looking toward the Sun!
+      // "Yüzeyden Bakış": Close orbital vantage right above the selected City Pin looking toward the Sun
       const pinWorld = new THREE.Vector3();
       const earthPos = new THREE.Vector3();
       this.cityPinGroup.getWorldPosition(pinWorld);
@@ -824,13 +868,10 @@ export class SolarSystemScene {
         ? new THREE.Vector3(0, 92, 6)
         : new THREE.Vector3(0, 36, 4);
     } else if (preset === 'body') {
-      const rig = this.planetRigs.get(bodyId);
-      if (rig) {
-        const pos = new THREE.Vector3();
-        rig.rootGroup.getWorldPosition(pos);
-        const r = PLANET_DATA[bodyId].modelRadius;
+      const pos = new THREE.Vector3();
+      if (this.getBodyWorldPosition(bodyId, pos)) {
         this.desiredTarget.copy(pos);
-        this.desiredCamPos = pos.clone().add(new THREE.Vector3(r * 3.8, r * 1.6, r * 3.8));
+        this.desiredCamPos = pos.clone().add(this.computeLitCameraOffset(bodyId, pos));
       }
     } else {
       this.desiredTarget.set(4.5, 0.2, 0);
@@ -1013,23 +1054,35 @@ export class SolarSystemScene {
       this.asteroidBelt.rotation.y = elapsed * 0.012;
     }
 
-    // Orbit-lock tracking for Earth close-up or Surface view
-    if (state.mode !== 'comparison' && (state.cameraPreset === 'earth' || state.cameraPreset === 'surface')) {
-      const earthPos = new THREE.Vector3();
-      this.earthTiltGroup.getWorldPosition(earthPos);
+    // Orbit-lock tracking for Earth, Surface view, or any focused Solar System planet
+    if (
+      state.mode !== 'comparison' &&
+      (state.cameraPreset === 'earth' ||
+        state.cameraPreset === 'surface' ||
+        state.cameraPreset === 'body')
+    ) {
       if (state.cameraPreset === 'surface') {
+        const earthPos = new THREE.Vector3();
         const pinWorld = new THREE.Vector3();
+        this.earthTiltGroup.getWorldPosition(earthPos);
         this.cityPinGroup.getWorldPosition(pinWorld);
         const upNormal = pinWorld.clone().sub(earthPos).normalize();
         this.desiredCamPos = pinWorld.clone().addScaledVector(upNormal, 1.35);
         this.desiredTarget.copy(earthPos).lerp(new THREE.Vector3(0, 1.2, 0), 0.22);
       } else {
-        const deltaMove = earthPos.clone().sub(this.controls.target);
-        if (!this.desiredCamPos) {
-          this.camera.position.add(deltaMove);
-          this.controls.target.copy(earthPos);
-        } else {
-          this.desiredTarget.copy(earthPos);
+        const trackId: BodyId = state.cameraPreset === 'earth' ? 'earth' : state.selectedBody;
+        const bodyPos = new THREE.Vector3();
+        if (this.getBodyWorldPosition(trackId, bodyPos)) {
+          if (!this.desiredCamPos) {
+            const deltaMove = bodyPos.clone().sub(this.controls.target);
+            this.camera.position.add(deltaMove);
+            this.controls.target.copy(bodyPos);
+          } else {
+            // Keep desired camera position moving in lockstep with the orbiting planet during fly-in
+            const deltaTarget = bodyPos.clone().sub(this.desiredTarget);
+            this.desiredTarget.copy(bodyPos);
+            this.desiredCamPos.add(deltaTarget);
+          }
         }
       }
     }

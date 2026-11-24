@@ -285,7 +285,7 @@ export class ObservatoryUI {
     this.root.querySelectorAll<HTMLButtonElement>('.mode-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         const mode = btn.dataset.mode as SimMode;
-        store.set({ mode, activeTourIndex: null });
+        store.set({ mode, cameraPreset: 'default', activeTourIndex: null });
       });
     });
 
