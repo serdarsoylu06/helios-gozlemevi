@@ -58,6 +58,16 @@ export interface GuidedTourStep {
   showLightBeam?: boolean;
 }
 
+export interface AstronomicalEvent {
+  id: string;
+  dateISO: string;
+  shortDate: string;
+  title: string;
+  category: 'solar-eclipse' | 'lunar-eclipse' | 'equinox' | 'solstice';
+  desc: string;
+  targetBody: BodyId;
+}
+
 export const J2000_JD = 2451545.0;
 export const SYNODIC_MONTH = 29.530588853;
 export const DRACONIC_MONTH = 27.212220817;
@@ -368,5 +378,98 @@ export const GUIDED_TOURS: GuidedTourStep[] = [
     dateISO: '2026-03-21T12:00:00Z',
     showTropics: false,
     showLightBeam: false,
+  },
+];
+
+export const ASTRONOMICAL_EVENTS: AstronomicalEvent[] = [
+  {
+    id: 'eq-2026-spring',
+    dateISO: '2026-03-20T14:46:00Z',
+    shortDate: '20 Mar 2026',
+    title: 'İlkbahar Ekinoksu',
+    category: 'equinox',
+    desc: 'Güneş ışınları Ekvator\'a tam 90° dik düşer; gece ve gündüz eşittir.',
+    targetBody: 'earth',
+  },
+  {
+    id: 'sol-2026-summer',
+    dateISO: '2026-06-21T08:24:00Z',
+    shortDate: '21 Haz 2026',
+    title: 'Yaz Gündönümü',
+    category: 'solstice',
+    desc: 'Güneş Yengeç Dönencesi\'ne dik düşer; Kuzey Yarımküre\'de en uzun gündüz.',
+    targetBody: 'earth',
+  },
+  {
+    id: 'eq-2026-autumn',
+    dateISO: '2026-09-23T00:05:00Z',
+    shortDate: '23 Eyl 2026',
+    title: 'Sonbahar Ekinoksu',
+    category: 'equinox',
+    desc: 'Güneş yeniden Ekvator düzleminden güneye geçer.',
+    targetBody: 'earth',
+  },
+  {
+    id: 'sol-2026-winter',
+    dateISO: '2026-12-21T20:50:00Z',
+    shortDate: '21 Ara 2026',
+    title: 'Kış Gündönümü',
+    category: 'solstice',
+    desc: 'Güneş Oğlak Dönencesi\'ne dik düşer; Kuzey Yarımküre\'de en uzun gece.',
+    targetBody: 'earth',
+  },
+  {
+    id: 'se-2026-aug',
+    dateISO: '2026-08-12T17:47:00Z',
+    shortDate: '12 Ağu 2026',
+    title: 'Tam Güneş Tutulması (Avrupa/İzlanda)',
+    category: 'solar-eclipse',
+    desc: 'Ay\'ın tam gölge (umbra) konisi Grönland, İzlanda ve İspanya üzerinden geçer.',
+    targetBody: 'earth',
+  },
+  {
+    id: 'le-2026-mar',
+    dateISO: '2026-03-03T11:33:00Z',
+    shortDate: '03 Mar 2026',
+    title: 'Tam Ay Tutulması (Kanlı Ay)',
+    category: 'lunar-eclipse',
+    desc: 'Ay Dünya\'nın tam gölgesine girer ve atmosferik kırılma nedeniyle bakır kızılına bürünür.',
+    targetBody: 'moon',
+  },
+  {
+    id: 'se-2027-aug',
+    dateISO: '2027-08-02T10:07:00Z',
+    shortDate: '02 Ağu 2027',
+    title: 'Tam Güneş Tutulması (Mısır/Akdeniz)',
+    category: 'solar-eclipse',
+    desc: 'Yüzyılın en uzun tutulmalarından biri: Mısır/Luksor\'da 6 dk 22 sn tam tutulma.',
+    targetBody: 'earth',
+  },
+  {
+    id: 'se-2028-jul',
+    dateISO: '2028-07-22T02:56:00Z',
+    shortDate: '22 Tem 2028',
+    title: 'Tam Güneş Tutulması (Sidney/Avustralya)',
+    category: 'solar-eclipse',
+    desc: 'Tam gölge hattı doğrudan Sidney üzerinden geçer.',
+    targetBody: 'earth',
+  },
+  {
+    id: 'le-2028-dec',
+    dateISO: '2028-12-31T16:52:00Z',
+    shortDate: '31 Ara 2028',
+    title: 'Yılbaşı Kanlı Ay Tutulması',
+    category: 'lunar-eclipse',
+    desc: '2028 yılının son gecesinde Avrupa ve Türkiye\'den izlenebilen Tam Ay Tutulması.',
+    targetBody: 'moon',
+  },
+  {
+    id: 'se-2030-nov',
+    dateISO: '2030-11-25T06:51:00Z',
+    shortDate: '25 Kas 2030',
+    title: 'Tam Güneş Tutulması (Güney Afrika)',
+    category: 'solar-eclipse',
+    desc: 'Güney Afrika ve Avustralya arasında izlenebilen tam Güneş tutulması.',
+    targetBody: 'earth',
   },
 ];

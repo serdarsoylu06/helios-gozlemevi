@@ -69,4 +69,11 @@ describe('Astronomy & Kepler Ephemeris Engine', () => {
     expect(getSeasonForLatitude(juneDay, -33.9).name).toBe('Kış');
     expect(getSeasonForLatitude(juneDay, -33.9).hemisphereLabel).toBe('Güney Y.K.');
   });
+
+  it('projects real-sky constellation RA/Dec coordinates accurately onto celestial sphere', async () => {
+    const { CONSTELLATIONS, raDecToEclipticVec3 } = await import('./constellations');
+    expect(CONSTELLATIONS.length).toBeGreaterThanOrEqual(12);
+    const v = raDecToEclipticVec3(5.92, 7.41, 760); // Betelgeuse
+    expect(v.length()).toBeCloseTo(760, 2);
+  });
 });

@@ -1,26 +1,34 @@
 import * as THREE from 'three';
 
 /**
- * Custom GLSL Earth Shader:
- * - Day side: NASA 2K satellite texture + ocean specular sun glint
- * - Terminator: Warm amber-orange twilight scattering band
- * - Night side: Warm glowing continental city lights
+ * Custom GLSL Earth Shader (v3.0):
+ * - Day side: NASA 2K satellite texture + derivative tangent-space normal relief + ocean specular glint
+ * - Cloud shadows: Soft projected shadows from the rotating cloud layer
+ * - Terminator: Warm amber-crimson twilight scattering band
+ * - Night side: NASA Black Marble continental city lights
  * - Real-time Solar Eclipse Umbra/Penumbra shadow cast by the Moon
  */
 export function createEarthDayNightMaterial(
   dayMap: THREE.Texture,
   nightMap: THREE.Texture,
-  specMap: THREE.Texture
+  specMap: THREE.Texture,
+  normalMap: THREE.Texture,
+  cloudMap: THREE.Texture
 ): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: {
       uDayMap: { value: dayMap },
       uNightMap: { value: nightMap },
       uSpecMap: { value: specMap },
+      uNormalMap: { value: normalMap },
+      uCloudMap: { value: cloudMap },
       uSunPosition: { value: new THREE.Vector3(0, 1.2, 0) },
       uMoonPosition: { value: new THREE.Vector3(100, 100, 100) },
       uMoonRadius: { value: 0.32 },
       uUseSpecMap: { value: 0.0 },
+      uUseNormalMap: { value: 0.0 },
+      uUseCloudShadow: { value: 0.0 },
+      uCloudOffset: { value: 0.0 },
     },
     vertexShader: /* glsl */ `
       varying vec2 vUv;
@@ -39,30 +47,61 @@ export function createEarthDayNightMaterial(
       uniform sampler2D uDayMap;
       uniform sampler2D uNightMap;
       uniform sampler2D uSpecMap;
+      uniform sampler2D uNormalMap;
+      uniform sampler2D uCloudMap;
       uniform vec3 uSunPosition;
       uniform vec3 uMoonPosition;
       uniform float uMoonRadius;
       uniform float uUseSpecMap;
+      uniform float uUseNormalMap;
+      uniform float uUseCloudShadow;
+      uniform float uCloudOffset;
 
       varying vec2 vUv;
       varying vec3 vWorldNormal;
       varying vec3 vWorldPosition;
 
+      vec3 perturbNormal(vec3 N, vec3 pos, vec2 uv) {
+        vec3 mapN = texture2D(uNormalMap, uv).xyz * 2.0 - 1.0;
+        mapN.xy *= 0.85;
+        vec3 dp1 = dFdx(pos);
+        vec3 dp2 = dFdy(pos);
+        vec2 duv1 = dFdx(uv);
+        vec2 duv2 = dFdy(uv);
+        vec3 dp2perp = cross(dp2, N);
+        vec3 dp1perp = cross(N, dp1);
+        vec3 T = dp2perp * duv1.x + dp1perp * duv2.x;
+        vec3 B = dp2perp * duv1.y + dp1perp * duv2.y;
+        float invmax = inversesqrt(max(dot(T, T), dot(B, B)) + 1e-6);
+        mat3 TBN = mat3(T * invmax, B * invmax, N);
+        return normalize(TBN * mapN);
+      }
+
       void main() {
-        vec3 N = normalize(vWorldNormal);
+        vec3 geoN = normalize(vWorldNormal);
+        vec3 N = uUseNormalMap > 0.5 ? perturbNormal(geoN, vWorldPosition, vUv) : geoN;
         vec3 L = normalize(uSunPosition - vWorldPosition);
         vec3 V = normalize(cameraPosition - vWorldPosition);
 
+        float geoNdotL = dot(geoN, L);
         float ndotl = dot(N, L);
-        float dayFactor = smoothstep(-0.12, 0.22, ndotl);
-        float nightFactor = 1.0 - smoothstep(-0.22, 0.06, ndotl);
-        float twilight = exp(-pow(ndotl * 7.5, 2.0)) * 0.42;
+        float dayFactor = smoothstep(-0.10, 0.22, geoNdotL);
+        float nightFactor = 1.0 - smoothstep(-0.20, 0.05, geoNdotL);
+        float twilight = exp(-pow(geoNdotL * 7.8, 2.0)) * 0.48;
 
         vec3 dayTex = texture2D(uDayMap, vUv).rgb;
         vec3 nightTex = texture2D(uNightMap, vUv).rgb;
         float oceanMask = mix(0.25, texture2D(uSpecMap, vUv).r, uUseSpecMap);
 
-        // Solar Eclipse shadow projection from Moon onto Earth (only when Moon is between Earth & Sun)
+        // Soft cloud shadow projected slightly offset along sun direction
+        float cloudShadow = 1.0;
+        if (uUseCloudShadow > 0.5 && dayFactor > 0.01) {
+          vec2 cUv = vec2(fract(vUv.x + uCloudOffset + 0.0028), vUv.y);
+          float cAlpha = texture2D(uCloudMap, cUv).a;
+          cloudShadow = 1.0 - cAlpha * 0.28;
+        }
+
+        // Solar Eclipse shadow projection from Moon onto Earth
         vec3 toSun = uSunPosition - vWorldPosition;
         float distToSun = length(toSun);
         vec3 toMoon = uMoonPosition - vWorldPosition;
@@ -72,17 +111,21 @@ export function createEarthDayNightMaterial(
           vec3 perp = toMoon - L * proj;
           float distToAxis = length(perp);
           float umbra = smoothstep(uMoonRadius * 0.45, uMoonRadius * 1.35, distToAxis);
-          eclipseShadow = mix(0.18, 1.0, umbra);
+          eclipseShadow = mix(0.14, 1.0, umbra);
         }
 
         // Diffuse + ocean specular reflection
-        float diff = max(ndotl, 0.0) * eclipseShadow;
+        float diff = max(ndotl, 0.0) * eclipseShadow * cloudShadow;
         vec3 H = normalize(L + V);
-        float spec = pow(max(dot(N, H), 0.0), 34.0) * oceanMask * dayFactor * eclipseShadow * 0.72;
+        float spec = pow(max(dot(geoN, H), 0.0), 42.0) * oceanMask * dayFactor * eclipseShadow * cloudShadow * 0.85;
 
-        vec3 dayColor = dayTex * (0.06 + diff * 1.25) + vec3(0.55, 0.82, 1.0) * spec;
-        vec3 twilightColor = vec3(0.95, 0.42, 0.16) * twilight * eclipseShadow * (0.4 + 0.6 * (1.0 - oceanMask));
-        vec3 nightColor = dayTex * 0.045 + nightTex * vec3(1.0, 0.78, 0.42) * nightFactor * 1.55;
+        // Subtle atmospheric horizon tint on day side
+        float fresnel = pow(clamp(1.0 - max(dot(geoN, V), 0.0), 0.0, 1.0), 3.2);
+        vec3 scatterRim = vec3(0.28, 0.62, 1.0) * fresnel * dayFactor * 0.28;
+
+        vec3 dayColor = dayTex * (0.04 + diff * 1.28) + vec3(0.65, 0.86, 1.0) * spec + scatterRim;
+        vec3 twilightColor = vec3(0.98, 0.36, 0.14) * twilight * eclipseShadow * (0.45 + 0.55 * (1.0 - oceanMask));
+        vec3 nightColor = dayTex * 0.032 + nightTex * vec3(1.0, 0.82, 0.50) * nightFactor * 1.45;
 
         vec3 finalColor = mix(nightColor, dayColor, dayFactor) + twilightColor;
         gl_FragColor = vec4(finalColor, 1.0);
@@ -121,18 +164,63 @@ export function createEarthAtmosphereMaterial(): THREE.ShaderMaterial {
         vec3 V = normalize(cameraPosition - vWorldPos);
         vec3 L = normalize(uSunPosition - vWorldPos);
 
-        float rim = pow(clamp(1.0 - max(dot(N, V), 0.0), 0.0, 1.0), 3.0);
-        float sunSide = smoothstep(-0.35, 0.55, dot(N, L));
-        vec3 dayGlow = vec3(0.24, 0.66, 1.0);
-        vec3 nightGlow = vec3(0.08, 0.22, 0.6);
-        vec3 col = mix(nightGlow, dayGlow, sunSide);
+        float ndotl = dot(N, L);
+        float rim = pow(clamp(1.0 - max(dot(N, V), 0.0), 0.0, 1.0), 3.2);
+        float sunSide = smoothstep(-0.32, 0.52, ndotl);
+        float sunsetBand = exp(-pow(ndotl * 5.2, 2.0)) * 0.45;
 
-        gl_FragColor = vec4(col, rim * (0.28 + 0.62 * sunSide));
+        vec3 dayGlow = vec3(0.24, 0.68, 1.0);
+        vec3 sunsetGlow = vec3(1.0, 0.44, 0.18);
+        vec3 nightGlow = vec3(0.06, 0.18, 0.52);
+        vec3 col = mix(nightGlow, dayGlow, sunSide) + sunsetGlow * sunsetBand;
+
+        gl_FragColor = vec4(col, rim * (0.22 + 0.68 * sunSide));
       }
     `,
     blending: THREE.AdditiveBlending,
     side: THREE.FrontSide,
     transparent: true,
+    depthWrite: false,
+  });
+}
+
+/**
+ * Soft Fresnel-faded volumetric Solar Beam for Tellurion mode
+ */
+export function createSolarBeamMaterial(): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uColor: { value: new THREE.Color('#f5d08a') },
+    },
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      varying vec3 vWorldNormal;
+      varying vec3 vWorldPos;
+      void main() {
+        vUv = uv;
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        vWorldNormal = normalize(mat3(modelMatrix) * normal);
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uColor;
+      varying vec2 vUv;
+      varying vec3 vWorldNormal;
+      varying vec3 vWorldPos;
+      void main() {
+        vec3 N = normalize(vWorldNormal);
+        vec3 V = normalize(cameraPosition - vWorldPos);
+        float edgeFade = pow(abs(dot(N, V)), 1.65);
+        float lengthFade = smoothstep(0.0, 0.18, vUv.y) * (1.0 - smoothstep(0.65, 1.0, vUv.y));
+        float alpha = edgeFade * lengthFade * 0.16;
+        gl_FragColor = vec4(uColor, alpha);
+      }
+    `,
+    transparent: true,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
 }

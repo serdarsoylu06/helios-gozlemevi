@@ -2,9 +2,18 @@ import * as THREE from 'three';
 
 export const TEXTURE_URLS = {
   earthDay: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r169/examples/textures/planets/earth_atmos_2048.jpg',
+  earthNormal: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r169/examples/textures/planets/earth_normal_2048.jpg',
   earthSpecular: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r169/examples/textures/planets/earth_specular_2048.jpg',
   earthClouds: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r169/examples/textures/planets/earth_clouds_1024.png',
+  earthLights: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r169/examples/textures/planets/earth_lights_2048.png',
   moon: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r169/examples/textures/planets/moon_1024.jpg',
+  mercury: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/mercurymap.jpg',
+  venus: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/venusmap.jpg',
+  mars: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/marsmap1k.jpg',
+  jupiter: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/jupitermap.jpg',
+  saturn: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/saturnmap.jpg',
+  uranus: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/uranusmap.jpg',
+  neptune: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/neptunemap.jpg',
 };
 
 export function createCoronaGlowTexture(): THREE.CanvasTexture {
@@ -138,71 +147,122 @@ export function createCalendarDialTexture(): THREE.CanvasTexture {
 
   const dayToAngle = (d: number) => -Math.PI / 2 - (d / 365.25) * Math.PI * 2;
 
-  ctx.fillStyle = '#090e1a';
+  // Transparent background for sleek holographic glass ring
+  ctx.clearRect(0, 0, 1024, 1024);
+
+  // Subtle smoked obsidian ring backdrop (hollow center)
+  ctx.save();
   ctx.beginPath();
-  ctx.arc(cx, cy, 508, 0, Math.PI * 2);
+  ctx.arc(cx, cy, 502, 0, Math.PI * 2);
+  ctx.arc(cx, cy, 286, 0, Math.PI * 2, true);
+  const ringBg = ctx.createRadialGradient(cx, cy, 286, cx, cy, 502);
+  ringBg.addColorStop(0, 'rgba(5, 9, 20, 0.25)');
+  ringBg.addColorStop(0.55, 'rgba(6, 11, 24, 0.56)');
+  ringBg.addColorStop(1, 'rgba(10, 16, 34, 0.72)');
+  ctx.fillStyle = ringBg;
   ctx.fill();
+  ctx.restore();
 
-  ctx.strokeStyle = '#d4a656';
-  ctx.lineWidth = 6;
-  ctx.beginPath();
-  ctx.arc(cx, cy, 498, 0, Math.PI * 2);
-  ctx.stroke();
+  // Concentric hairline golden rings
+  const ringRadii: [number, string, number][] = [
+    [500, 'rgba(232, 184, 90, 0.78)', 2.5],
+    [470, 'rgba(232, 184, 90, 0.22)', 1.2],
+    [388, 'rgba(232, 184, 90, 0.34)', 1.5],
+    [290, 'rgba(232, 184, 90, 0.52)', 1.8],
+  ];
+  ringRadii.forEach(([r, col, lw]) => {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = col;
+    ctx.lineWidth = lw;
+    ctx.stroke();
+  });
 
+  // 144 fine ecliptic degree ticks around outer bezel
+  for (let i = 0; i < 144; i++) {
+    const angle = (i / 144) * Math.PI * 2;
+    const isMajor = i % 12 === 0;
+    const isMid = i % 3 === 0;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(isMajor ? 470 : isMid ? 480 : 488, 0);
+    ctx.lineTo(498, 0);
+    ctx.strokeStyle = isMajor
+      ? 'rgba(232, 184, 90, 0.85)'
+      : isMid
+        ? 'rgba(203, 213, 225, 0.35)'
+        : 'rgba(148, 163, 184, 0.16)';
+    ctx.lineWidth = isMajor ? 2 : 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Delicate luminous season arcs (no heavy solid pie fills)
   const seasons = [
-    { name: 'İLKBAHAR', color: '#14532d', accent: '#4ade80', startDay: 0, endDay: 92 },
-    { name: 'YAZ', color: '#7c2d12', accent: '#fbbf24', startDay: 92, endDay: 186 },
-    { name: 'SONBAHAR', color: '#78350f', accent: '#fb923c', startDay: 186, endDay: 275 },
-    { name: 'KIŞ', color: '#1e3a5f', accent: '#38bdf8', startDay: 275, endDay: 365.25 },
+    { name: 'İLKBAHAR', accent: 'rgba(74, 222, 128, 0.78)', tint: 'rgba(74, 222, 128, 0.08)', startDay: 0, endDay: 92 },
+    { name: 'YAZ', accent: 'rgba(251, 191, 36, 0.82)', tint: 'rgba(251, 191, 36, 0.09)', startDay: 92, endDay: 186 },
+    { name: 'SONBAHAR', accent: 'rgba(251, 146, 60, 0.78)', tint: 'rgba(251, 146, 60, 0.08)', startDay: 186, endDay: 275 },
+    { name: 'KIŞ', accent: 'rgba(56, 189, 248, 0.78)', tint: 'rgba(56, 189, 248, 0.08)', startDay: 275, endDay: 365.25 },
   ];
 
   seasons.forEach((s) => {
     const aStart = dayToAngle(s.startDay);
     const aEnd = dayToAngle(s.endDay);
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, 368, aEnd, aStart);
-    ctx.closePath();
-    ctx.fillStyle = s.color;
-    ctx.fill();
-    ctx.lineWidth = 2.5;
-    ctx.strokeStyle = 'rgba(212, 166, 86, 0.72)';
-    ctx.stroke();
 
+    // Whisper-thin translucent tint band
     ctx.beginPath();
-    ctx.arc(cx, cy, 364, aEnd, aStart);
-    ctx.lineWidth = 6;
+    ctx.arc(cx, cy, 386, aEnd, aStart);
+    ctx.arc(cx, cy, 292, aStart, aEnd, true);
+    ctx.closePath();
+    ctx.fillStyle = s.tint;
+    ctx.fill();
+
+    // Crisp luminous outer arc line
+    ctx.beginPath();
+    ctx.arc(cx, cy, 386, aEnd + 0.015, aStart - 0.015);
+    ctx.lineWidth = 3.5;
     ctx.strokeStyle = s.accent;
     ctx.stroke();
-  });
 
-  for (let i = 0; i < 72; i++) {
-    const angle = (i / 72) * Math.PI * 2;
+    // Cardinal equinox / solstice divider ray
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.rotate(angle);
+    ctx.rotate(aStart);
     ctx.beginPath();
-    ctx.moveTo(476, 0);
-    ctx.lineTo(494, 0);
-    ctx.strokeStyle = i % 6 === 0 ? 'rgba(212, 166, 86, 0.85)' : 'rgba(148, 163, 184, 0.32)';
-    ctx.lineWidth = i % 6 === 0 ? 2.5 : 1.2;
+    ctx.moveTo(290, 0);
+    ctx.lineTo(498, 0);
+    ctx.strokeStyle = 'rgba(232, 184, 90, 0.65)';
+    ctx.lineWidth = 1.6;
     ctx.stroke();
     ctx.restore();
-  }
+
+    // Season label
+    const midAngle = dayToAngle((s.startDay + s.endDay) / 2);
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(midAngle + Math.PI / 2);
+    ctx.fillStyle = 'rgba(241, 245, 249, 0.88)';
+    ctx.font = '600 18px Space Grotesk, Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(s.name, 0, -332);
+    ctx.restore();
+  });
 
   const monthSectors = [
-    { name: 'NİSAN', start: 11, end: 41 },
-    { name: 'MAYIS', start: 41, end: 72 },
-    { name: 'HAZİRAN', start: 72, end: 102 },
-    { name: 'TEMMUZ', start: 102, end: 133 },
-    { name: 'AĞUSTOS', start: 133, end: 164 },
-    { name: 'EYLÜL', start: 164, end: 194 },
-    { name: 'EKİM', start: 194, end: 225 },
-    { name: 'KASIM', start: 225, end: 255 },
-    { name: 'ARALIK', start: 255, end: 286 },
-    { name: 'OCAK', start: 286, end: 317 },
-    { name: 'ŞUBAT', start: 317, end: 345 },
-    { name: 'MART', start: 345, end: 376.25 },
+    { name: 'NİS', start: 11, end: 41 },
+    { name: 'MAY', start: 41, end: 72 },
+    { name: 'HAZ', start: 72, end: 102 },
+    { name: 'TEM', start: 102, end: 133 },
+    { name: 'AĞU', start: 133, end: 164 },
+    { name: 'EYL', start: 164, end: 194 },
+    { name: 'EKİ', start: 194, end: 225 },
+    { name: 'KAS', start: 225, end: 255 },
+    { name: 'ARA', start: 255, end: 286 },
+    { name: 'OCA', start: 286, end: 317 },
+    { name: 'ŞUB', start: 317, end: 345 },
+    { name: 'MAR', start: 345, end: 376.25 },
   ];
 
   monthSectors.forEach((m) => {
@@ -211,10 +271,10 @@ export function createCalendarDialTexture(): THREE.CanvasTexture {
     ctx.translate(cx, cy);
     ctx.rotate(angle);
     ctx.beginPath();
-    ctx.moveTo(368, 0);
-    ctx.lineTo(494, 0);
-    ctx.strokeStyle = 'rgba(226, 232, 240, 0.45)';
-    ctx.lineWidth = 2;
+    ctx.moveTo(390, 0);
+    ctx.lineTo(468, 0);
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
+    ctx.lineWidth = 1.2;
     ctx.stroke();
     ctx.restore();
 
@@ -222,42 +282,12 @@ export function createCalendarDialTexture(): THREE.CanvasTexture {
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(midAngle + Math.PI / 2);
-    ctx.fillStyle = '#e2e8f0';
-    ctx.font = '600 24px Space Grotesk, Inter, sans-serif';
+    ctx.fillStyle = 'rgba(226, 232, 240, 0.82)';
+    ctx.font = '500 20px JetBrains Mono, monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(m.name, 0, -418);
+    ctx.fillText(m.name, 0, -422);
     ctx.restore();
   });
-
-  seasons.forEach((s) => {
-    const midAngle = dayToAngle((s.startDay + s.endDay) / 2);
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(midAngle + Math.PI / 2);
-    ctx.fillStyle = '#f8fafc';
-    ctx.font = '700 24px Space Grotesk, Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(s.name, 0, -295);
-    ctx.restore();
-  });
-
-  const grad = ctx.createRadialGradient(cx, cy, 18, cx, cy, 224);
-  grad.addColorStop(0, '#334155');
-  grad.addColorStop(0.65, '#1e293b');
-  grad.addColorStop(0.95, '#0f172a');
-  grad.addColorStop(1, '#d4a656');
-  ctx.beginPath();
-  ctx.arc(cx, cy, 224, 0, Math.PI * 2);
-  ctx.fillStyle = grad;
-  ctx.fill();
-  ctx.lineWidth = 4;
-  ctx.strokeStyle = '#d4a656';
-  ctx.stroke();
-
-  ctx.fillStyle = '#d4a656';
-  ctx.font = '600 19px Space Grotesk, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('HELIOS · EKLİPTİK TAKVİM', cx, cy + 146);
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.anisotropy = 8;

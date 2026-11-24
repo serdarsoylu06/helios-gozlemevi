@@ -3,9 +3,14 @@
 @tailwind utilities;
 
 :root {
-  --hud-bg: rgba(7, 11, 22, 0.74);
-  --hud-border: rgba(255, 255, 255, 0.09);
-  --hud-highlight: rgba(255, 255, 255, 0.08);
+  --obs-bg: rgba(6, 10, 20, 0.72);
+  --obs-bg-strong: rgba(5, 8, 17, 0.88);
+  --obs-subcard: rgba(15, 23, 42, 0.44);
+  --obs-border: rgba(255, 255, 255, 0.085);
+  --obs-border-strong: rgba(232, 184, 90, 0.42);
+  --obs-highlight: rgba(255, 255, 255, 0.06);
+  --obs-gold: #e8b85a;
+  color-scheme: dark;
 }
 
 * {
@@ -18,7 +23,16 @@ body {
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
-  background: radial-gradient(circle at 50% 45%, #090f24 0%, #030610 100%);
+  background: radial-gradient(circle at 50% 45%, #070d1f 0%, #02040a 100%);
+}
+
+/* Subtle cinematic lens vignette around viewport */
+#canvas-container::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, transparent 56%, rgba(2, 4, 10, 0.56) 100%);
 }
 
 canvas {
@@ -36,22 +50,35 @@ canvas:active {
   font-variant-numeric: tabular-nums;
 }
 
-.hud-panel {
-  background: var(--hud-bg);
-  backdrop-filter: blur(22px) saturate(145%);
-  -webkit-backdrop-filter: blur(22px) saturate(145%);
-  border: 1px solid var(--hud-border);
+.obs-glass {
+  background: var(--obs-bg);
+  backdrop-filter: blur(24px) saturate(145%);
+  -webkit-backdrop-filter: blur(24px) saturate(145%);
+  border: 1px solid var(--obs-border);
   box-shadow:
-    0 14px 44px -14px rgba(0, 0, 0, 0.8),
-    inset 0 1px 0 0 var(--hud-highlight);
+    0 18px 48px -18px rgba(0, 0, 0, 0.85),
+    inset 0 1px 0 0 var(--obs-highlight);
 }
 
-.hud-subcard {
-  background: rgba(15, 23, 42, 0.56);
+.obs-subcard {
+  background: var(--obs-subcard);
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-/* Precision sliders */
+.obs-input {
+  background: rgba(8, 13, 27, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  color: #f1f5f9;
+  color-scheme: dark;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.obs-input:focus {
+  outline: none;
+  border-color: rgba(232, 184, 90, 0.65);
+  box-shadow: 0 0 0 1px rgba(232, 184, 90, 0.25);
+}
+
+/* Precision Observatory Sliders */
 input[type='range'] {
   -webkit-appearance: none;
   appearance: none;
@@ -60,60 +87,142 @@ input[type='range'] {
 }
 input[type='range']::-webkit-slider-runnable-track {
   width: 100%;
-  height: 4px;
-  background: rgba(148, 163, 184, 0.24);
+  height: 3px;
+  background: rgba(148, 163, 184, 0.22);
   border-radius: 999px;
 }
 input[type='range']::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  height: 14px;
-  width: 14px;
+  height: 12px;
+  width: 12px;
   border-radius: 50%;
-  background: #f8fafc;
-  border: 2px solid #f59e0b;
-  margin-top: -5px;
-  box-shadow: 0 0 12px rgba(245, 158, 11, 0.7);
+  background: #fffbeb;
+  border: 2px solid var(--obs-gold);
+  margin-top: -4.5px;
+  box-shadow: 0 0 10px rgba(232, 184, 90, 0.65);
   transition: transform 0.12s ease;
 }
 input[type='range']::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
+  transform: scale(1.22);
 }
 
 #timeline-slider::-webkit-slider-runnable-track {
-  height: 5px;
+  height: 3px;
   background: linear-gradient(
     90deg,
-    rgba(52, 211, 153, 0.6) 0%,
-    rgba(245, 158, 11, 0.7) 25%,
-    rgba(249, 115, 22, 0.65) 50%,
-    rgba(56, 189, 248, 0.7) 75%,
-    rgba(52, 211, 153, 0.6) 100%
+    rgba(74, 222, 128, 0.55) 0%,
+    rgba(232, 184, 90, 0.72) 25%,
+    rgba(251, 146, 60, 0.62) 50%,
+    rgba(56, 189, 248, 0.65) 75%,
+    rgba(74, 222, 128, 0.55) 100%
   );
 }
 
-/* Floating 3D labels */
+/* Pro Reticle 3D Planet Labels */
 .planet-label {
   position: absolute;
-  transform: translate(-50%, -100%);
+  transform: translate(-6px, -100%);
   pointer-events: auto;
   cursor: pointer;
-  transition: transform 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
-  margin-top: -12px;
-  background: rgba(7, 11, 22, 0.78);
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-top: -10px;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.planet-reticle {
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  border: 1.5px solid var(--dot, #e8b85a);
+  position: relative;
+  flex-shrink: 0;
+  background: rgba(2, 4, 10, 0.45);
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.8);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.planet-reticle::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 999px;
+  background: var(--dot, #e8b85a);
+}
+.planet-stem {
+  width: 14px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0.15));
+  flex-shrink: 0;
+}
+.planet-tag {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: rgba(5, 9, 19, 0.62);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  white-space: nowrap;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.planet-name {
+  font-family: 'Space Grotesk', 'Inter', sans-serif;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(241, 245, 249, 0.92);
+}
+.planet-meta {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9.5px;
+  color: rgba(148, 163, 184, 0.85);
 }
 .planet-label:hover {
-  transform: translate(-50%, -108%) scale(1.06);
-  border-color: rgba(245, 158, 11, 0.7);
   z-index: 30;
 }
-.planet-label.is-selected {
-  border-color: rgba(245, 158, 11, 0.95);
-  background: rgba(245, 158, 11, 0.18);
-  box-shadow: 0 0 18px rgba(245, 158, 11, 0.3);
+.planet-label:hover .planet-reticle {
+  transform: scale(1.22);
+}
+.planet-label:hover .planet-tag {
+  border-color: rgba(232, 184, 90, 0.65);
+  background: rgba(8, 13, 26, 0.85);
+}
+.planet-label.is-selected .planet-reticle {
+  border-color: var(--obs-gold);
+  box-shadow: 0 0 12px rgba(232, 184, 90, 0.75);
+}
+.planet-label.is-selected .planet-tag {
+  border-color: rgba(232, 184, 90, 0.8);
+  background: rgba(232, 184, 90, 0.14);
+}
+.planet-label.is-selected .planet-name {
+  color: #fef3c7;
+}
+
+/* Rail Icon Buttons */
+.rail-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(148, 163, 184, 0.9);
+  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+  border: 1px solid transparent;
+}
+.rail-btn:hover {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.06);
+}
+.rail-btn.is-active {
+  color: #fde68a;
+  background: rgba(232, 184, 90, 0.16);
+  border-color: rgba(232, 184, 90, 0.42);
 }
 
 /* Custom toggle switch */
@@ -123,7 +232,7 @@ input[type='range']::-webkit-slider-thumb:hover {
   height: 16px;
   appearance: none;
   -webkit-appearance: none;
-  background: rgba(148, 163, 184, 0.25);
+  background: rgba(148, 163, 184, 0.22);
   border-radius: 999px;
   cursor: pointer;
   transition: background 0.18s ease;
@@ -141,23 +250,33 @@ input[type='range']::-webkit-slider-thumb:hover {
   transition: transform 0.18s ease, background 0.18s ease;
 }
 .hud-switch:checked {
-  background: rgba(245, 158, 11, 0.88);
+  background: rgba(232, 184, 90, 0.9);
 }
 .hud-switch:checked::after {
   transform: translateX(14px);
-  background: #0f172a;
+  background: #0b1120;
 }
 
 .hud-scroll {
   scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.25) transparent;
+  scrollbar-color: rgba(148, 163, 184, 0.22) transparent;
 }
 .hud-scroll::-webkit-scrollbar {
   width: 4px;
 }
 .hud-scroll::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.28);
+  background: rgba(148, 163, 184, 0.24);
   border-radius: 999px;
+}
+
+/* Cinematic Intro Overlay */
+#intro-overlay {
+  transition: opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1), visibility 0.65s ease;
+}
+#intro-overlay.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

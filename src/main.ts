@@ -15,10 +15,21 @@ function bootstrap(): void {
 
   const audio = new ObservatoryAudio();
   const sceneController = new SolarSystemScene(canvasContainer, labelsContainer, audio);
-  new ObservatoryUI(hudRoot, (preset) => sceneController.focusCamera(preset));
+  new ObservatoryUI(
+    hudRoot,
+    (preset, bodyId) => sceneController.focusCamera(preset, bodyId),
+    () => sceneController.captureSnapshot()
+  );
 
   // Global keyboard shortcuts
   window.addEventListener('keydown', (e) => {
+    // Ctrl+K / Cmd+K Command Palette works even from inputs
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+      e.preventDefault();
+      store.set({ commandPaletteOpen: !store.get().commandPaletteOpen });
+      return;
+    }
+
     const tag = document.activeElement?.tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
 
@@ -40,10 +51,14 @@ function bootstrap(): void {
     } else if (e.key === 'h' || e.key === 'H') {
       store.set({ presentationMode: !store.get().presentationMode });
     } else if (e.key === 'Escape') {
-      if (store.get().presentationMode) {
+      if (store.get().commandPaletteOpen) {
+        store.set({ commandPaletteOpen: false });
+      } else if (store.get().presentationMode) {
         store.set({ presentationMode: false });
       } else if (store.get().activeTourIndex !== null) {
         store.set({ activeTourIndex: null });
+      } else if (store.get().activeDrawerTab !== null) {
+        store.set({ activeDrawerTab: null });
       }
     }
   });

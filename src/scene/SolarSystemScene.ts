@@ -17,8 +17,11 @@ import {
 import {
   computeLunarState,
   computePlanetPosition,
+  formatTurkishDate,
   getEquinoxDayOfYear,
+  julianDateToDate,
 } from '../astronomy/ephemeris';
+import { CONSTELLATIONS, raDecToEclipticVec3 } from '../astronomy/constellations';
 import { AppState, store } from '../state/store';
 import {
   createAuroraMaterial,
@@ -85,6 +88,7 @@ export class SolarSystemScene {
   private sunLensFlareSprite!: THREE.Sprite;
   private sunProminencesGroup!: THREE.Group;
   private starsMat!: THREE.ShaderMaterial;
+  private constellationsGroup!: THREE.Group;
   private tellurion!: TellurionParts;
 
   private mainArmGroup!: THREE.Group;
@@ -116,6 +120,7 @@ export class SolarSystemScene {
   private asteroidBelt!: THREE.InstancedMesh;
   private comparisonGroup!: THREE.Group;
   private comparisonEarthMat: THREE.MeshStandardMaterial | null = null;
+  private comparisonMats = new Map<BodyId, THREE.MeshStandardMaterial>();
   private comparisonClickables: THREE.Mesh[] = [];
 
   private planetRigs = new Map<BodyId, PlanetRig>();
@@ -128,10 +133,13 @@ export class SolarSystemScene {
   private tempVec = new THREE.Vector3();
   private tempMoonWorld = new THREE.Vector3();
 
-  // Smooth camera transition state
+  // Smooth cubic ease-in-out camera flight state
   private desiredTarget = new THREE.Vector3(4.5, 0.2, 0);
   private desiredCamPos: THREE.Vector3 | null = null;
-  private camLerpAlpha = 0.08;
+  private flyStartPos = new THREE.Vector3();
+  private flyStartTarget = new THREE.Vector3();
+  private flyProgress = 1;
+  private flyDuration = 1.05;
   private tellurionDropProgress = 0; // 0 = visible, 1 = lowered/hidden
   private lastTickDay = 0;
   private animFrameId = 0;
@@ -144,6 +152,7 @@ export class SolarSystemScene {
 
     this.initRendererAndScene();
     this.createDeepSpaceStarfield();
+    this.buildConstellations();
     this.buildSun();
     this.buildTellurionAndEarth();
     this.buildSolarSystemAndAsteroids();
@@ -291,6 +300,72 @@ export class SolarSystemScene {
     this.scene.add(new THREE.Points(geo, this.starsMat));
   }
 
+  private buildConstellations(): void {
+    this.constellationsGroup = new THREE.Group();
+    const skyR = 760;
+    const linePts: THREE.Vector3[] = [];
+    const starPts: THREE.Vector3[] = [];
+
+    const makeConstellationLabel = (text: string, pos: THREE.Vector3): THREE.Sprite => {
+      const c = document.createElement('canvas');
+      c.width = 256;
+      c.height = 48;
+      const ctx = c.getContext('2d')!;
+      ctx.font = '600 18px JetBrains Mono, monospace';
+      ctx.fillStyle = 'rgba(186, 214, 255, 0.42)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 128, 24);
+      const tex = new THREE.CanvasTexture(c);
+      const sp = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: tex,
+          transparent: true,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        })
+      );
+      sp.position.copy(pos);
+      sp.scale.set(95, 18, 1);
+      return sp;
+    };
+
+    CONSTELLATIONS.forEach((con) => {
+      con.segments.forEach(([a, b]) => {
+        const va = raDecToEclipticVec3(a[0], a[1], skyR);
+        const vb = raDecToEclipticVec3(b[0], b[1], skyR);
+        linePts.push(va, vb);
+        starPts.push(va, vb);
+      });
+      const centerPos = raDecToEclipticVec3(con.center[0], con.center[1], skyR * 0.98);
+      this.constellationsGroup.add(makeConstellationLabel(`${con.name.toUpperCase()} · ${con.latin}`, centerPos));
+    });
+
+    const lineGeo = new THREE.BufferGeometry().setFromPoints(linePts);
+    const lineMat = new THREE.LineBasicMaterial({
+      color: 0x93c5fd,
+      transparent: true,
+      opacity: 0.19,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.constellationsGroup.add(new THREE.LineSegments(lineGeo, lineMat));
+
+    const starGeo = new THREE.BufferGeometry().setFromPoints(starPts);
+    const starMat = new THREE.PointsMaterial({
+      color: 0xe0f2fe,
+      size: 4.5,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.72,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.constellationsGroup.add(new THREE.Points(starGeo, starMat));
+    this.constellationsGroup.visible = store.get().showConstellations;
+    this.scene.add(this.constellationsGroup);
+  }
+
   private buildSun(): void {
     this.sunPlasmaMat = createSunPlasmaMaterial();
     this.sunMesh = new THREE.Mesh(
@@ -386,10 +461,16 @@ export class SolarSystemScene {
     );
     this.earthTiltGroup.add(axisRod);
 
-    // Earth with custom Day/Night + City Lights + Eclipse Shadow GLSL shader
+    // Earth with custom Day/Night + Normal Relief + Cloud Shadows + Black Marble + Eclipse Shadow GLSL shader
     const fallbackDay = createEarthFallbackTexture();
     const nightTex = createEarthNightLightsTexture();
-    this.earthShaderMat = createEarthDayNightMaterial(fallbackDay, nightTex, fallbackDay);
+    this.earthShaderMat = createEarthDayNightMaterial(
+      fallbackDay,
+      nightTex,
+      fallbackDay,
+      fallbackDay,
+      fallbackDay
+    );
 
     this.earthMesh = new THREE.Mesh(
       new THREE.SphereGeometry(PLANET_DATA.earth.modelRadius, 64, 64),
@@ -897,6 +978,7 @@ export class SolarSystemScene {
           roughness: 0.65,
         });
       }
+      this.comparisonMats.set(key, mat);
 
       const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 40, 40), mat);
       mesh.position.set(cursorX, 0, 0);
@@ -946,6 +1028,11 @@ export class SolarSystemScene {
     const loader = new THREE.TextureLoader();
     loader.setCrossOrigin('anonymous');
 
+    // Failsafe timer so intro overlay always lifts smoothly even on slow/offline connections
+    const introTimer = window.setTimeout(() => {
+      if (!store.get().introReady) store.set({ introReady: true });
+    }, 1100);
+
     loader.load(
       TEXTURE_URLS.earthDay,
       (dayTex) => {
@@ -956,15 +1043,31 @@ export class SolarSystemScene {
           this.comparisonEarthMat.map = dayTex;
           this.comparisonEarthMat.needsUpdate = true;
         }
-        store.set({ textureQuality: 'nasa-2k' });
+        window.clearTimeout(introTimer);
+        store.set({ textureQuality: 'nasa-2k', introReady: true });
       },
       undefined,
-      () => store.set({ textureQuality: 'procedural' })
+      () => {
+        window.clearTimeout(introTimer);
+        store.set({ textureQuality: 'procedural', introReady: true });
+      }
     );
+
+    loader.load(TEXTURE_URLS.earthNormal, (normTex) => {
+      normTex.anisotropy = 4;
+      this.earthShaderMat.uniforms.uNormalMap.value = normTex;
+      this.earthShaderMat.uniforms.uUseNormalMap.value = 1.0;
+    });
 
     loader.load(TEXTURE_URLS.earthSpecular, (specTex) => {
       this.earthShaderMat.uniforms.uSpecMap.value = specTex;
       this.earthShaderMat.uniforms.uUseSpecMap.value = 1.0;
+    });
+
+    loader.load(TEXTURE_URLS.earthLights, (lightsTex) => {
+      lightsTex.colorSpace = THREE.SRGBColorSpace;
+      lightsTex.anisotropy = 4;
+      this.earthShaderMat.uniforms.uNightMap.value = lightsTex;
     });
 
     loader.load(TEXTURE_URLS.earthClouds, (cloudTex) => {
@@ -973,6 +1076,8 @@ export class SolarSystemScene {
       mat.map = cloudTex;
       mat.opacity = 0.78;
       mat.needsUpdate = true;
+      this.earthShaderMat.uniforms.uCloudMap.value = cloudTex;
+      this.earthShaderMat.uniforms.uUseCloudShadow.value = store.get().showClouds ? 1.0 : 0.0;
       this.earthCloudsMesh.visible = store.get().showClouds;
     });
 
@@ -983,6 +1088,37 @@ export class SolarSystemScene {
       this.moonMaterial.bumpMap = moonTex;
       this.moonMaterial.bumpScale = 0.025;
       this.moonMaterial.needsUpdate = true;
+    });
+
+    // Load 2K textures for all 7 Solar System planets (keeps procedural fallback on error)
+    const planetTexMap: Partial<Record<BodyId, string>> = {
+      mercury: TEXTURE_URLS.mercury,
+      venus: TEXTURE_URLS.venus,
+      mars: TEXTURE_URLS.mars,
+      jupiter: TEXTURE_URLS.jupiter,
+      saturn: TEXTURE_URLS.saturn,
+      uranus: TEXTURE_URLS.uranus,
+      neptune: TEXTURE_URLS.neptune,
+    };
+
+    (Object.keys(planetTexMap) as BodyId[]).forEach((key) => {
+      const url = planetTexMap[key];
+      if (!url) return;
+      loader.load(url, (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = 4;
+        const rig = this.planetRigs.get(key);
+        if (rig) {
+          const mat = rig.mesh.material as THREE.MeshStandardMaterial;
+          mat.map = tex;
+          mat.needsUpdate = true;
+        }
+        const cmpMat = this.comparisonMats.get(key);
+        if (cmpMat) {
+          cmpMat.map = tex;
+          cmpMat.needsUpdate = true;
+        }
+      });
     });
   }
 
@@ -995,9 +1131,16 @@ export class SolarSystemScene {
     visibleIn: SimMode[]
   ): void {
     const div = document.createElement('div');
-    div.className =
-      'planet-label px-2.5 py-1 rounded-full text-[11px] font-medium text-slate-100 shadow-lg whitespace-nowrap flex items-center gap-1.5';
-    div.innerHTML = `<span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:${dotColor}"></span><span>${text}</span>`;
+    div.className = 'planet-label';
+    const [primary, meta] = text.split(' · ');
+    div.innerHTML = `
+      <span class="planet-reticle" style="--dot:${dotColor}"></span>
+      <span class="planet-stem"></span>
+      <span class="planet-tag">
+        <span class="planet-name">${primary}</span>
+        ${meta ? `<span class="planet-meta">${meta}</span>` : ''}
+      </span>
+    `;
     div.onclick = (e) => {
       e.stopPropagation();
       const bodyId = id.replace('cmp-', '') as BodyId;
@@ -1027,11 +1170,18 @@ export class SolarSystemScene {
     if (changed.has('showLightBeam')) {
       this.tellurion.lightBeamCone.visible = state.showLightBeam && state.mode === 'tellurion';
     }
+    if (changed.has('showConstellations')) {
+      if (this.constellationsGroup) {
+        this.constellationsGroup.visible = state.showConstellations;
+      }
+    }
     if (changed.has('showClouds')) {
       const mat = this.earthCloudsMesh.material as THREE.MeshLambertMaterial;
       this.earthCloudsMesh.visible = state.showClouds && Boolean(mat.map);
       this.earthAtmoMesh.visible = state.showClouds;
       this.auroraGroup.visible = state.showClouds;
+      this.earthShaderMat.uniforms.uUseCloudShadow.value =
+        state.showClouds && Boolean(mat.map) ? 1.0 : 0.0;
     }
     if (changed.has('showTropics')) {
       this.tropicsGroup.visible = state.showTropics;
@@ -1084,15 +1234,21 @@ export class SolarSystemScene {
     }
 
     if (isComparison) {
-      this.desiredTarget.set(14, 0, 0);
-      this.desiredCamPos = new THREE.Vector3(14, 5.5, 36);
+      this.startCameraFlight(new THREE.Vector3(14, 5.5, 36), new THREE.Vector3(14, 0, 0), 0.95);
     } else if (isSolar) {
-      this.desiredTarget.set(0, 1.2, 0);
-      this.desiredCamPos = new THREE.Vector3(0, 42, 68);
+      this.startCameraFlight(new THREE.Vector3(0, 42, 68), new THREE.Vector3(0, 1.2, 0), 1.1);
     } else {
-      this.desiredTarget.set(4.5, 0.2, 0);
-      this.desiredCamPos = new THREE.Vector3(19, 13, 19);
+      this.startCameraFlight(new THREE.Vector3(19, 13, 19), new THREE.Vector3(4.5, 0.2, 0), 1.0);
     }
+  }
+
+  private startCameraFlight(camPos: THREE.Vector3, targetPos: THREE.Vector3, duration = 1.05): void {
+    this.flyStartPos.copy(this.camera.position);
+    this.flyStartTarget.copy(this.controls.target);
+    this.desiredCamPos = camPos.clone();
+    this.desiredTarget.copy(targetPos);
+    this.flyProgress = 0;
+    this.flyDuration = duration;
   }
 
   private syncTellurionDrop(): void {
@@ -1149,21 +1305,22 @@ export class SolarSystemScene {
   public focusCamera(preset: CameraPreset, bodyId: BodyId = store.get().selectedBody): void {
     const state = store.get();
     if (state.mode === 'comparison') {
-      this.desiredTarget.set(14, 0, 0);
-      this.desiredCamPos = new THREE.Vector3(14, 5.5, 36);
+      this.startCameraFlight(new THREE.Vector3(14, 5.5, 36), new THREE.Vector3(14, 0, 0), 0.9);
       return;
     }
 
     if (preset === 'sun') {
-      this.desiredTarget.set(0, 1.2, 0);
-      this.desiredCamPos = state.mode === 'solar'
-        ? new THREE.Vector3(0, 32, 54)
-        : new THREE.Vector3(16, 11, 18);
+      const camPos =
+        state.mode === 'solar' ? new THREE.Vector3(0, 32, 54) : new THREE.Vector3(16, 11, 18);
+      this.startCameraFlight(camPos, new THREE.Vector3(0, 1.2, 0), 1.05);
     } else if (preset === 'earth') {
       const earthPos = new THREE.Vector3();
       this.earthTiltGroup.getWorldPosition(earthPos);
-      this.desiredTarget.copy(earthPos);
-      this.desiredCamPos = earthPos.clone().add(this.computeLitCameraOffset('earth', earthPos));
+      this.startCameraFlight(
+        earthPos.clone().add(this.computeLitCameraOffset('earth', earthPos)),
+        earthPos,
+        1.05
+      );
     } else if (preset === 'surface') {
       // "Yüzeyden Bakış": Calm, scenic ISS-style close-up directly above the selected City Pin
       const pinWorld = new THREE.Vector3();
@@ -1172,22 +1329,18 @@ export class SolarSystemScene {
       this.earthTiltGroup.getWorldPosition(earthPos);
       const upNormal = pinWorld.clone().sub(earthPos).normalize();
       const dist = 2.45 * state.planetScale;
-      this.desiredCamPos = pinWorld.clone().addScaledVector(upNormal, dist);
-      this.desiredTarget.copy(pinWorld);
+      this.startCameraFlight(pinWorld.clone().addScaledVector(upNormal, dist), pinWorld, 1.15);
     } else if (preset === 'top') {
-      this.desiredTarget.set(0, 1.2, 0);
-      this.desiredCamPos = state.mode === 'solar'
-        ? new THREE.Vector3(0, 92, 6)
-        : new THREE.Vector3(0, 36, 4);
+      const camPos =
+        state.mode === 'solar' ? new THREE.Vector3(0, 92, 6) : new THREE.Vector3(0, 36, 4);
+      this.startCameraFlight(camPos, new THREE.Vector3(0, 1.2, 0), 1.0);
     } else if (preset === 'body') {
       const pos = new THREE.Vector3();
       if (this.getBodyWorldPosition(bodyId, pos)) {
-        this.desiredTarget.copy(pos);
-        this.desiredCamPos = pos.clone().add(this.computeLitCameraOffset(bodyId, pos));
+        this.startCameraFlight(pos.clone().add(this.computeLitCameraOffset(bodyId, pos)), pos, 1.1);
       }
     } else {
-      this.desiredTarget.set(4.5, 0.2, 0);
-      this.desiredCamPos = new THREE.Vector3(19, 13, 19);
+      this.startCameraFlight(new THREE.Vector3(19, 13, 19), new THREE.Vector3(4.5, 0.2, 0), 1.0);
     }
   }
 
@@ -1204,10 +1357,12 @@ export class SolarSystemScene {
     this.earthSystemGroup.position.set(earthRadius, 0, 0);
     this.earthSystemGroup.rotation.y = -orbitAngle;
 
-    // Earth spin
+    // Earth spin & synchronized cloud shadow UV offset
     const spinDay = jd - 2451545.0;
     this.earthMesh.rotation.y = state.useRealSpin ? spinDay * Math.PI * 2 : spinDay * 0.85;
     this.earthCloudsMesh.rotation.y = this.earthMesh.rotation.y * 1.12;
+    this.earthShaderMat.uniforms.uCloudOffset.value =
+      ((this.earthMesh.rotation.y - this.earthCloudsMesh.rotation.y) / (Math.PI * 2)) % 1;
 
     // Moon Kepler/Synodic + 5.145° orbital inclination (glides smoothly on visible tilted ring)
     const lunar = computeLunarState(jd);
@@ -1485,14 +1640,18 @@ export class SolarSystemScene {
       }
     }
 
-    // Smooth camera lerp
+    // Smooth cubic ease-in-out camera flight
     if (this.desiredCamPos) {
-      this.camera.position.lerp(this.desiredCamPos, this.camLerpAlpha);
-      this.controls.target.lerp(this.desiredTarget, this.camLerpAlpha);
-      if (
-        this.camera.position.distanceTo(this.desiredCamPos) < 0.06 &&
-        state.cameraPreset !== 'surface'
-      ) {
+      this.flyProgress = Math.min(1, this.flyProgress + delta / Math.max(0.15, this.flyDuration));
+      const t = this.flyProgress;
+      const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+      this.camera.position.lerpVectors(this.flyStartPos, this.desiredCamPos, ease);
+      this.controls.target.lerpVectors(this.flyStartTarget, this.desiredTarget, ease);
+
+      if (this.flyProgress >= 1) {
+        this.camera.position.copy(this.desiredCamPos);
+        this.controls.target.copy(this.desiredTarget);
         this.desiredCamPos = null;
       }
     }
@@ -1501,6 +1660,65 @@ export class SolarSystemScene {
     this.updateLabels();
     this.composer.render();
   };
+
+  /**
+   * Captures a high-resolution PNG snapshot with subtle Observatory telemetry stamp.
+   */
+  public captureSnapshot(): void {
+    this.composer.render();
+    const srcCanvas = this.renderer.domElement;
+    const out = document.createElement('canvas');
+    out.width = srcCanvas.width;
+    out.height = srcCanvas.height;
+    const ctx = out.getContext('2d');
+    if (!ctx) return;
+
+    ctx.drawImage(srcCanvas, 0, 0);
+
+    // Subtle bottom-left Observatory stamp
+    const state = store.get();
+    const dateStr = formatTurkishDate(julianDateToDate(state.jd));
+    const modeLabel =
+      state.mode === 'tellurion'
+        ? 'TELLURION'
+        : state.mode === 'solar'
+          ? 'GÜNEŞ SİSTEMİ'
+          : '109x KARŞILAŞTIRMA';
+    const bodyLabel = PLANET_DATA[state.selectedBody].name.toUpperCase();
+
+    const pad = Math.round(out.width * 0.022);
+    const fontSize = Math.max(14, Math.round(out.width * 0.011));
+    ctx.save();
+    ctx.fillStyle = 'rgba(5, 8, 18, 0.58)';
+    const boxW = Math.round(fontSize * 26);
+    const boxH = Math.round(fontSize * 3.1);
+    const bx = pad;
+    const by = out.height - pad - boxH;
+    ctx.beginPath();
+    ctx.roundRect(bx, by, boxW, boxH, 10);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(232, 184, 90, 0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.fillStyle = '#e8b85a';
+    ctx.font = `700 ${fontSize}px Space Grotesk, Inter, sans-serif`;
+    ctx.fillText('HELIOS GÖZLEMEVİ', bx + fontSize, by + fontSize * 1.35);
+
+    ctx.fillStyle = 'rgba(226, 232, 240, 0.85)';
+    ctx.font = `500 ${Math.round(fontSize * 0.82)}px JetBrains Mono, monospace`;
+    ctx.fillText(
+      `${dateStr.toUpperCase()}  ·  ${modeLabel}  ·  ${bodyLabel}`,
+      bx + fontSize,
+      by + fontSize * 2.45
+    );
+    ctx.restore();
+
+    const link = document.createElement('a');
+    link.download = `helios-gozlemevi-${Date.now()}.png`;
+    link.href = out.toDataURL('image/png');
+    link.click();
+  }
 
   public dispose(): void {
     cancelAnimationFrame(this.animFrameId);

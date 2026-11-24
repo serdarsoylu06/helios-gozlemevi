@@ -7,6 +7,8 @@ export interface CustomPin {
   label: string;
 }
 
+export type DrawerTab = 'ephemeris' | 'location' | 'body' | 'layers' | null;
+
 export interface AppState {
   jd: number;
   isPlaying: boolean;
@@ -18,16 +20,18 @@ export interface AppState {
   selectedCityId: string;
   customPin: CustomPin | null;
   showLabels: boolean;
+  showConstellations: boolean;
   showLightBeam: boolean;
   showClouds: boolean;
   showTropics: boolean;
   useRealSpin: boolean;
   useSound: boolean;
-  sidebarOpen: boolean;
-  rightPanelOpen: boolean;
+  activeDrawerTab: DrawerTab;
+  commandPaletteOpen: boolean;
   presentationMode: boolean;
   activeTourIndex: number | null;
   textureQuality: 'loading' | 'nasa-2k' | 'procedural';
+  introReady: boolean;
 }
 
 type Listener = (state: AppState, changedKeys: Set<keyof AppState>) => void;
@@ -62,8 +66,6 @@ class Store {
   }
 }
 
-const isDesktop = typeof window !== 'undefined' ? window.innerWidth >= 768 : true;
-
 export const store = new Store({
   jd: dateToJulianDate(new Date('2026-03-21T12:00:00Z')),
   isPlaying: true,
@@ -75,14 +77,16 @@ export const store = new Store({
   selectedCityId: CITIES[0].id,
   customPin: null,
   showLabels: true,
+  showConstellations: true,
   showLightBeam: true,
   showClouds: true,
   showTropics: false,
   useRealSpin: false,
   useSound: false,
-  sidebarOpen: isDesktop,
-  rightPanelOpen: isDesktop,
+  activeDrawerTab: null,
+  commandPaletteOpen: false,
   presentationMode: false,
   activeTourIndex: null,
   textureQuality: 'loading',
+  introReady: false,
 });
