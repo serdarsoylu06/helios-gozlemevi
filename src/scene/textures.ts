@@ -265,6 +265,170 @@ export function createCalendarDialTexture(): THREE.CanvasTexture {
   return tex;
 }
 
+export function createLensFlareTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d')!;
+  const cx = 256;
+  const cy = 256;
+
+  // Soft golden core
+  const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, 180);
+  core.addColorStop(0.0, 'rgba(255, 253, 240, 0.72)');
+  core.addColorStop(0.2, 'rgba(253, 224, 71, 0.25)');
+  core.addColorStop(0.55, 'rgba(249, 115, 22, 0.06)');
+  core.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = core;
+  ctx.fillRect(0, 0, 512, 512);
+
+  // Subtle horizontal anamorphic streak
+  const streak = ctx.createLinearGradient(0, cy, 512, cy);
+  streak.addColorStop(0.0, 'rgba(251, 191, 36, 0)');
+  streak.addColorStop(0.32, 'rgba(253, 224, 71, 0.14)');
+  streak.addColorStop(0.5, 'rgba(255, 251, 235, 0.45)');
+  streak.addColorStop(0.68, 'rgba(253, 224, 71, 0.14)');
+  streak.addColorStop(1.0, 'rgba(251, 191, 36, 0)');
+  ctx.fillStyle = streak;
+  ctx.fillRect(0, cy - 3, 512, 6);
+
+  // 4 delicate diffraction spikes
+  [0, Math.PI / 2, Math.PI / 4, -Math.PI / 4].forEach((ang, idx) => {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(ang);
+    const len = idx < 2 ? 220 : 125;
+    const g = ctx.createLinearGradient(-len, 0, len, 0);
+    g.addColorStop(0, 'rgba(255,255,255,0)');
+    g.addColorStop(0.5, idx < 2 ? 'rgba(255,250,220,0.32)' : 'rgba(253,224,71,0.16)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(-len, -1.5, len * 2, 3);
+    ctx.restore();
+  });
+
+  return new THREE.CanvasTexture(canvas);
+}
+
+/**
+ * Subtle Deep-Space Milky Way Galactic Band & Cosmic Dust Nebula Skybox
+ */
+export function createMilkyWaySkyboxTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 2048;
+  canvas.height = 1024;
+  const ctx = canvas.getContext('2d')!;
+
+  // Deep obsidian space base
+  ctx.fillStyle = '#02040a';
+  ctx.fillRect(0, 0, 2048, 1024);
+
+  // Tilted galactic band across the sky sphere
+  for (let i = 0; i < 160; i++) {
+    const t = i / 160;
+    const x = t * 2048;
+    const wave = Math.sin(t * Math.PI * 2 + 0.6) * 210;
+    const y = 512 + wave + (((i * 73) % 90) - 45);
+    const r = 90 + (i % 130);
+
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    if (i % 5 === 0) {
+      // Warm galactic core amber/indigo dust
+      g.addColorStop(0, 'rgba(139, 92, 246, 0.08)');
+      g.addColorStop(0.5, 'rgba(30, 58, 138, 0.05)');
+      g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    } else if (i % 7 === 0) {
+      g.addColorStop(0, 'rgba(217, 119, 6, 0.065)');
+      g.addColorStop(0.55, 'rgba(79, 70, 229, 0.04)');
+      g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    } else {
+      g.addColorStop(0, 'rgba(56, 189, 248, 0.055)');
+      g.addColorStop(0.5, 'rgba(30, 41, 82, 0.045)');
+      g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    }
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Subtle dark cosmic dust rift down the center of the Milky Way
+  for (let i = 0; i < 65; i++) {
+    const t = i / 65;
+    const x = t * 2048;
+    const y = 512 + Math.sin(t * Math.PI * 2 + 0.6) * 210;
+    const r = 35 + (i % 45);
+    const d = ctx.createRadialGradient(x, y, 0, x, y, r);
+    d.addColorStop(0, 'rgba(2, 4, 10, 0.45)');
+    d.addColorStop(1, 'rgba(2, 4, 10, 0)');
+    ctx.fillStyle = d;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+export function createUranusRingTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 32;
+  const ctx = canvas.getContext('2d')!;
+  const grad = ctx.createLinearGradient(0, 0, 256, 0);
+  grad.addColorStop(0.0, 'rgba(103, 232, 249, 0)');
+  grad.addColorStop(0.18, 'rgba(165, 243, 252, 0.25)');
+  grad.addColorStop(0.24, 'rgba(165, 243, 252, 0.04)');
+  grad.addColorStop(0.45, 'rgba(103, 232, 249, 0.32)');
+  grad.addColorStop(0.52, 'rgba(103, 232, 249, 0.04)');
+  grad.addColorStop(0.82, 'rgba(207, 250, 254, 0.48)');
+  grad.addColorStop(0.89, 'rgba(207, 250, 254, 0.12)');
+  grad.addColorStop(1.0, 'rgba(103, 232, 249, 0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 256, 32);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+export function createPlanetBumpTexture(key: string): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#808080';
+  ctx.fillRect(0, 0, 1024, 512);
+
+  const count = key === 'mercury' || key === 'moon' ? 220 : 120;
+  for (let i = 0; i < count; i++) {
+    const x = ((i * 173.3) % 980) + 22;
+    const y = ((i * 91.7) % 450) + 31;
+    const r = 4 + (i % 24);
+    const g = ctx.createRadialGradient(x, y, r * 0.15, x, y, r);
+    g.addColorStop(0, 'rgba(30,30,30,0.65)');
+    g.addColorStop(0.75, 'rgba(215,215,215,0.55)');
+    g.addColorStop(1, 'rgba(128,128,128,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  if (key === 'mars') {
+    // Valles Marineris canyon scar
+    ctx.strokeStyle = 'rgba(20, 20, 20, 0.75)';
+    ctx.lineWidth = 7;
+    ctx.beginPath();
+    ctx.moveTo(390, 275);
+    ctx.quadraticCurveTo(460, 288, 540, 272);
+    ctx.stroke();
+  }
+
+  return new THREE.CanvasTexture(canvas);
+}
+
 export function createDetailedPlanetTexture(key: string): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = 1024;
@@ -272,68 +436,117 @@ export function createDetailedPlanetTexture(key: string): THREE.CanvasTexture {
   const ctx = canvas.getContext('2d')!;
 
   const palettes: Record<string, string[]> = {
-    mercury: ['#6b7280', '#9ca3af', '#4b5563', '#d1d5db'],
-    venus: ['#b45309', '#d97706', '#f59e0b', '#fde68a'],
-    mars: ['#7c2d12', '#c2410c', '#ea580c', '#9a3412'],
-    jupiter: ['#92400e', '#d97706', '#fef3c7', '#b45309'],
-    saturn: ['#a16207', '#eab308', '#fef08a', '#ca8a04'],
-    uranus: ['#0e7490', '#22d3ee', '#67e8f9', '#0891b2'],
-    neptune: ['#1e3a8a', '#2563eb', '#3b82f6', '#1d4ed8'],
+    mercury: ['#52525b', '#8c8a84', '#a8a29e', '#3f3f46'],
+    venus: ['#9a5b13', '#d49a45', '#f3d18c', '#b46c1c'],
+    mars: ['#6b2714', '#b84623', '#d96b38', '#8a3419'],
+    jupiter: ['#7c4a21', '#c78c52', '#f3dfc1', '#a65c2e'],
+    saturn: ['#92743b', '#d4b46a', '#f2e0ad', '#b3904c'],
+    uranus: ['#1e7c8c', '#67d4e0', '#a5edf5', '#2c9aa8'],
+    neptune: ['#162c6e', '#2452b8', '#4178e8', '#1b3d8f'],
     moon: ['#64748b', '#94a3b8', '#cbd5e1', '#475569'],
   };
   const pal = palettes[key] || palettes.moon;
 
   const grad = ctx.createLinearGradient(0, 0, 0, 512);
   grad.addColorStop(0, pal[0]);
-  grad.addColorStop(0.3, pal[1]);
+  grad.addColorStop(0.22, pal[1]);
   grad.addColorStop(0.5, pal[2]);
-  grad.addColorStop(0.75, pal[1]);
+  grad.addColorStop(0.78, pal[1]);
   grad.addColorStop(1, pal[0]);
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, 1024, 512);
 
+  // Turbulent atmospheric jet streams for gas & ice giants + Venus
   if (['jupiter', 'saturn', 'venus', 'uranus', 'neptune'].includes(key)) {
-    const bandCount = key === 'jupiter' ? 28 : 16;
+    const bandCount = key === 'jupiter' ? 34 : key === 'saturn' ? 24 : 16;
     for (let i = 0; i < bandCount; i++) {
-      const y = (i / bandCount) * 512;
+      const yBase = (i / bandCount) * 512;
       const h = 512 / bandCount;
-      ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.14)';
-      ctx.fillRect(0, y, 1024, h * 0.65);
+      ctx.beginPath();
+      ctx.moveTo(0, yBase);
+      for (let x = 0; x <= 1024; x += 32) {
+        const wave = Math.sin((x / 1024) * Math.PI * 4 + i * 1.1) * (key === 'jupiter' ? 5.5 : 2.5);
+        ctx.lineTo(x, yBase + wave);
+      }
+      ctx.lineTo(1024, yBase + h);
+      ctx.lineTo(0, yBase + h);
+      ctx.closePath();
+      ctx.fillStyle =
+        i % 3 === 0
+          ? 'rgba(255, 250, 235, 0.16)'
+          : i % 3 === 1
+            ? 'rgba(15, 23, 42, 0.15)'
+            : 'rgba(180, 90, 30, 0.12)';
+      ctx.fill();
     }
   }
 
-  const featureCount = key === 'mercury' || key === 'moon' ? 95 : 32;
+  // Surface features: craters / dark basalt plains / atmospheric storms
+  const featureCount = key === 'mercury' || key === 'moon' ? 180 : key === 'mars' ? 95 : 42;
   for (let i = 0; i < featureCount; i++) {
     const x = ((i * 137.5) % 980) + 22;
     const y = ((i * 73.1) % 440) + 36;
-    const rx = 10 + (i % 24);
-    const ry = key === 'jupiter' || key === 'saturn' ? rx * 0.32 : rx * 0.85;
-    ctx.fillStyle = i % 2 === 0 ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.14)';
+    const rx = 6 + (i % 26);
+    const ry = key === 'jupiter' || key === 'saturn' ? rx * 0.28 : rx * 0.85;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, rx);
+    if (i % 2 === 0) {
+      g.addColorStop(0, 'rgba(10, 12, 20, 0.28)');
+      g.addColorStop(1, 'rgba(10, 12, 20, 0)');
+    } else {
+      g.addColorStop(0, 'rgba(255, 250, 240, 0.22)');
+      g.addColorStop(1, 'rgba(255, 250, 240, 0)');
+    }
+    ctx.fillStyle = g;
     ctx.beginPath();
     ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
     ctx.fill();
   }
 
   if (key === 'mars') {
-    ctx.fillStyle = 'rgba(248, 250, 252, 0.88)';
-    ctx.fillRect(0, 0, 1024, 24);
+    // Dark Syrtis Major & Valles Marineris rift + polar ice caps
+    ctx.strokeStyle = 'rgba(58, 18, 10, 0.65)';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(390, 275);
+    ctx.quadraticCurveTo(460, 288, 540, 272);
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(248, 250, 252, 0.9)';
+    ctx.fillRect(0, 0, 1024, 22);
     ctx.fillRect(0, 492, 1024, 20);
   }
 
   if (key === 'jupiter') {
-    const spot = ctx.createRadialGradient(520, 325, 8, 520, 325, 68);
-    spot.addColorStop(0, '#991b1b');
-    spot.addColorStop(0.55, '#dc2626');
-    spot.addColorStop(0.85, '#f59e0b');
-    spot.addColorStop(1, 'rgba(245,158,11,0)');
+    // Great Red Spot with swirling inner vortex
+    const spot = ctx.createRadialGradient(520, 325, 6, 520, 325, 72);
+    spot.addColorStop(0, '#7f1d1d');
+    spot.addColorStop(0.45, '#dc2626');
+    spot.addColorStop(0.78, '#ea580c');
+    spot.addColorStop(1, 'rgba(245, 158, 11, 0)');
     ctx.fillStyle = spot;
     ctx.beginPath();
-    ctx.ellipse(520, 325, 68, 38, 0, 0, Math.PI * 2);
+    ctx.ellipse(520, 325, 72, 40, -0.06, 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  if (key === 'neptune') {
+    // Great Dark Spot + bright methane cirrus streaks
+    const darkSpot = ctx.createRadialGradient(420, 290, 4, 420, 290, 42);
+    darkSpot.addColorStop(0, 'rgba(15, 23, 66, 0.85)');
+    darkSpot.addColorStop(1, 'rgba(15, 23, 66, 0)');
+    ctx.fillStyle = darkSpot;
+    ctx.beginPath();
+    ctx.ellipse(420, 290, 42, 22, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(224, 242, 254, 0.55)';
+    ctx.fillRect(405, 266, 48, 4);
+    ctx.fillRect(680, 195, 72, 3);
   }
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
   return tex;
 }
 

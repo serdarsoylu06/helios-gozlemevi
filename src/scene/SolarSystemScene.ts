@@ -21,16 +21,24 @@ import {
 } from '../astronomy/ephemeris';
 import { AppState, store } from '../state/store';
 import {
+  createAuroraMaterial,
   createEarthAtmosphereMaterial,
   createEarthDayNightMaterial,
+  createPlanetAtmosphereMaterial,
+  createSaturnRingShadowMaterial,
   createSunPlasmaMaterial,
+  createTwinklingStarsMaterial,
 } from './shaders';
 import {
   createCoronaGlowTexture,
   createDetailedPlanetTexture,
   createEarthFallbackTexture,
   createEarthNightLightsTexture,
+  createLensFlareTexture,
+  createMilkyWaySkyboxTexture,
+  createPlanetBumpTexture,
   createSaturnRingTexture,
+  createUranusRingTexture,
   TEXTURE_URLS,
 } from './textures';
 import { buildTellurionHardware, TellurionParts } from './TellurionAssembly';
@@ -42,6 +50,13 @@ interface PlanetRig {
   tiltGroup: THREE.Group;
   mesh: THREE.Mesh;
   orbitLine: THREE.LineLoop;
+  trailLine: THREE.Line;
+}
+
+interface GalileanMoon {
+  pivot: THREE.Group;
+  speed: number;
+  phase: number;
 }
 
 interface LabelEntry {
@@ -67,6 +82,9 @@ export class SolarSystemScene {
   private sunMesh!: THREE.Mesh;
   private sunPlasmaMat!: THREE.ShaderMaterial;
   private sunCoronaSprite!: THREE.Sprite;
+  private sunLensFlareSprite!: THREE.Sprite;
+  private sunProminencesGroup!: THREE.Group;
+  private starsMat!: THREE.ShaderMaterial;
   private tellurion!: TellurionParts;
 
   private mainArmGroup!: THREE.Group;
@@ -76,8 +94,14 @@ export class SolarSystemScene {
   private earthShaderMat!: THREE.ShaderMaterial;
   private earthCloudsMesh!: THREE.Mesh;
   private earthAtmoMesh!: THREE.Mesh;
+  private auroraGroup!: THREE.Group;
+  private auroraMat!: THREE.ShaderMaterial;
   private tropicsGroup!: THREE.Group;
   private subsolarMarker!: THREE.Mesh;
+  private solarRaysGroup!: THREE.Group;
+  private eclipseConeGroup!: THREE.Group;
+  private eclipseUmbraMat!: THREE.MeshBasicMaterial;
+  private eclipsePenumbraMat!: THREE.MeshBasicMaterial;
   private cityPinGroup!: THREE.Group;
 
   private moonOrbitGroup!: THREE.Group;
@@ -86,6 +110,9 @@ export class SolarSystemScene {
 
   private solarSystemGroup!: THREE.Group;
   private earthOrbitLine!: THREE.LineLoop;
+  private earthTrailLine!: THREE.Line;
+  private saturnRingMat: THREE.ShaderMaterial | null = null;
+  private galileanMoons: GalileanMoon[] = [];
   private asteroidBelt!: THREE.InstancedMesh;
   private comparisonGroup!: THREE.Group;
   private comparisonEarthMat: THREE.MeshStandardMaterial | null = null;
@@ -197,9 +224,23 @@ export class SolarSystemScene {
   }
 
   private createDeepSpaceStarfield(): void {
+    // 1. Subtle Deep-Space Milky Way Nebula Skybox Sphere
+    const skySphere = new THREE.Mesh(
+      new THREE.SphereGeometry(950, 48, 32),
+      new THREE.MeshBasicMaterial({
+        map: createMilkyWaySkyboxTexture(),
+        side: THREE.BackSide,
+        depthWrite: false,
+      })
+    );
+    this.scene.add(skySphere);
+
+    // 2. Twinkling Spectral Starfield
     const count = 4200;
     const positions = new Float32Array(count * 3);
     const colors = new Float32Array(count * 3);
+    const sizes = new Float32Array(count);
+    const phases = new Float32Array(count);
     const palette = [
       new THREE.Color('#bfdbfe'),
       new THREE.Color('#f8fafc'),
@@ -208,23 +249,17 @@ export class SolarSystemScene {
     ];
 
     for (let i = 0; i < count; i++) {
-      // 35% concentrated along a tilted Milky Way galactic band
       const inBand = i < count * 0.35;
-      const r = 160 + Math.random() * 420;
+      const r = 160 + Math.random() * 440;
       const theta = Math.random() * Math.PI * 2;
-      let phi: number;
-      if (inBand) {
-        const bandSpread = (Math.random() - 0.5) * 0.28;
-        phi = Math.PI / 2 + bandSpread;
-      } else {
-        phi = Math.acos(2 * Math.random() - 1);
-      }
+      const phi = inBand
+        ? Math.PI / 2 + (Math.random() - 0.5) * 0.28
+        : Math.acos(2 * Math.random() - 1);
 
       let x = r * Math.sin(phi) * Math.cos(theta);
       let y = r * Math.cos(phi);
       let z = r * Math.sin(phi) * Math.sin(theta);
 
-      // Tilt Milky Way band by ~60°
       if (inBand) {
         const tilt = 1.05;
         const y2 = y * Math.cos(tilt) - z * Math.sin(tilt);
@@ -238,24 +273,22 @@ export class SolarSystemScene {
       positions[i * 3 + 2] = z;
 
       const c = palette[i % palette.length];
-      const b = inBand ? 0.35 + Math.random() * 0.45 : 0.55 + Math.random() * 0.45;
+      const b = inBand ? 0.38 + Math.random() * 0.45 : 0.55 + Math.random() * 0.45;
       colors[i * 3] = c.r * b;
       colors[i * 3 + 1] = c.g * b;
       colors[i * 3 + 2] = c.b * b;
+      sizes[i] = inBand ? 1.1 + Math.random() * 1.4 : 1.4 + Math.random() * 2.2;
+      phases[i] = Math.random() * Math.PI * 2;
     }
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+    geo.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
 
-    const mat = new THREE.PointsMaterial({
-      size: 0.72,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.9,
-      sizeAttenuation: true,
-    });
-    this.scene.add(new THREE.Points(geo, mat));
+    this.starsMat = createTwinklingStarsMaterial();
+    this.scene.add(new THREE.Points(geo, this.starsMat));
   }
 
   private buildSun(): void {
@@ -269,6 +302,34 @@ export class SolarSystemScene {
     this.scene.add(this.sunMesh);
     this.clickableMeshes.push(this.sunMesh);
 
+    // Solar Prominences (delicate glowing plasma arches along the Sun's limb)
+    this.sunProminencesGroup = new THREE.Group();
+    this.sunProminencesGroup.position.y = 1.2;
+    const promMat = new THREE.MeshBasicMaterial({
+      color: 0xfb923c,
+      transparent: true,
+      opacity: 0.48,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const sunR = PLANET_DATA.sun.modelRadius;
+    const promConfigs = [
+      { lon: 0.3, lat: 0.25, arch: 0.55, span: 0.26 },
+      { lon: 1.8, lat: -0.32, arch: 0.65, span: 0.3 },
+      { lon: 3.1, lat: 0.45, arch: 0.48, span: 0.22 },
+      { lon: 4.5, lat: -0.18, arch: 0.6, span: 0.28 },
+      { lon: 5.4, lat: 0.12, arch: 0.52, span: 0.24 },
+    ];
+    promConfigs.forEach(({ lon, lat, arch, span }) => {
+      const p0 = new THREE.Vector3().setFromSphericalCoords(sunR * 0.98, Math.PI / 2 - lat, lon - span / 2);
+      const p2 = new THREE.Vector3().setFromSphericalCoords(sunR * 0.98, Math.PI / 2 - lat - 0.08, lon + span / 2);
+      const p1 = new THREE.Vector3().setFromSphericalCoords(sunR + arch, Math.PI / 2 - lat - 0.04, lon);
+      const curve = new THREE.QuadraticBezierCurve3(p0, p1, p2);
+      const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 20, 0.055, 8, false), promMat);
+      this.sunProminencesGroup.add(tube);
+    });
+    this.scene.add(this.sunProminencesGroup);
+
     const coronaMat = new THREE.SpriteMaterial({
       map: createCoronaGlowTexture(),
       color: 0xfdba74,
@@ -281,6 +342,20 @@ export class SolarSystemScene {
     this.sunCoronaSprite.scale.set(13.8, 13.8, 1);
     this.sunCoronaSprite.position.set(0, 1.2, 0);
     this.scene.add(this.sunCoronaSprite);
+
+    // Subtle Anamorphic Starburst Lens Flare
+    this.sunLensFlareSprite = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: createLensFlareTexture(),
+        transparent: true,
+        opacity: 0.58,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    this.sunLensFlareSprite.scale.set(17.5, 17.5, 1);
+    this.sunLensFlareSprite.position.set(0, 1.2, 0);
+    this.scene.add(this.sunLensFlareSprite);
 
     this.createLabel('sun', 'Güneş · 3.5x', this.sunMesh, 4.1, '#f59e0b', ['tellurion', 'solar']);
   }
@@ -343,6 +418,24 @@ export class SolarSystemScene {
     );
     this.earthTiltGroup.add(this.earthAtmoMesh);
 
+    // Aurora Borealis & Australis (Glowing green-violet geomagnetic curtains near poles)
+    this.auroraMat = createAuroraMaterial();
+    this.auroraGroup = new THREE.Group();
+    const er = PLANET_DATA.earth.modelRadius;
+    const northAurora = new THREE.Mesh(
+      new THREE.CylinderGeometry(er * 0.34, er * 0.44, er * 0.16, 48, 1, true),
+      this.auroraMat
+    );
+    northAurora.position.y = er * 0.94;
+    const southAurora = new THREE.Mesh(
+      new THREE.CylinderGeometry(er * 0.44, er * 0.34, er * 0.16, 48, 1, true),
+      this.auroraMat
+    );
+    southAurora.position.y = -er * 0.94;
+    this.auroraGroup.add(northAurora, southAurora);
+    this.auroraGroup.visible = store.get().showClouds;
+    this.earthTiltGroup.add(this.auroraGroup);
+
     // Equator, Tropics, Polar Circles, K/G Pole Badges & 90° Subsolar Point Marker
     this.tropicsGroup = this.buildTropicsOverlay(PLANET_DATA.earth.modelRadius * 1.025);
     this.tropicsGroup.visible = store.get().showTropics;
@@ -359,6 +452,55 @@ export class SolarSystemScene {
     );
     this.subsolarMarker.visible = store.get().showTropics;
     this.scene.add(this.subsolarMarker);
+
+    // Educational Parallel Solar Ray Arrows (visibly proves oblique vs 90° incidence on tilted Earth)
+    this.solarRaysGroup = new THREE.Group();
+    this.solarRaysGroup.position.set(PLANET_DATA.earth.modelDistance, 1.2, 0);
+    const rayMat = new THREE.MeshBasicMaterial({ color: 0xfde047, transparent: true, opacity: 0.85 });
+    const shaftGeo = new THREE.CylinderGeometry(0.015, 0.015, 1.45, 8);
+    shaftGeo.rotateZ(Math.PI / 2);
+    const headGeo = new THREE.ConeGeometry(0.055, 0.18, 12);
+    headGeo.rotateZ(-Math.PI / 2);
+    [-0.78, -0.39, 0, 0.39, 0.78].forEach((yOff) => {
+      const arrow = new THREE.Group();
+      const shaft = new THREE.Mesh(shaftGeo, rayMat);
+      shaft.position.set(-2.05, yOff, 0);
+      const head = new THREE.Mesh(headGeo, rayMat);
+      head.position.set(-1.26, yOff, 0);
+      arrow.add(shaft, head);
+      this.solarRaysGroup.add(arrow);
+    });
+    this.solarRaysGroup.visible = store.get().showTropics;
+    this.mainArmGroup.add(this.solarRaysGroup);
+
+    // 3D Eclipse Umbra & Penumbra Shadow Cones (appears automatically during Solar/Lunar Eclipses)
+    this.eclipseConeGroup = new THREE.Group();
+    this.eclipseUmbraMat = new THREE.MeshBasicMaterial({
+      color: 0x020617,
+      transparent: true,
+      opacity: 0.45,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    this.eclipsePenumbraMat = new THREE.MeshBasicMaterial({
+      color: 0x1e293b,
+      transparent: true,
+      opacity: 0.2,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const umbraGeo = new THREE.ConeGeometry(0.32, 1.0, 28, 1, true);
+    umbraGeo.translate(0, -0.5, 0);
+    umbraGeo.rotateX(-Math.PI / 2); // Base at z=0, tip extends toward +Z
+    const penumbraGeo = new THREE.ConeGeometry(0.68, 1.0, 28, 1, true);
+    penumbraGeo.translate(0, -0.5, 0);
+    penumbraGeo.rotateX(Math.PI / 2); // Widens outward toward +Z
+    this.eclipseConeGroup.add(
+      new THREE.Mesh(umbraGeo, this.eclipseUmbraMat),
+      new THREE.Mesh(penumbraGeo, this.eclipsePenumbraMat)
+    );
+    this.eclipseConeGroup.visible = false;
+    this.scene.add(this.eclipseConeGroup);
 
     // Interactive City Pin on Earth's surface
     this.cityPinGroup = new THREE.Group();
@@ -496,18 +638,70 @@ export class SolarSystemScene {
     return new THREE.LineLoop(geo, mat);
   }
 
+  private buildFadingTrailLine(colorHex: string): THREE.Line {
+    const segments = 48;
+    const positions = new Float32Array(segments * 3);
+    const colors = new Float32Array(segments * 3);
+    const c = new THREE.Color(colorHex);
+    for (let i = 0; i < segments; i++) {
+      const fade = Math.pow(i / (segments - 1), 1.8);
+      colors[i * 3] = c.r * fade;
+      colors[i * 3 + 1] = c.g * fade;
+      colors[i * 3 + 2] = c.b * fade;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    const mat = new THREE.LineBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    return new THREE.Line(geo, mat);
+  }
+
+  private updateTrailGeometry(line: THREE.Line, bodyId: BodyId, jd: number): void {
+    const p = PLANET_DATA[bodyId];
+    const posAttr = line.geometry.attributes.position as THREE.BufferAttribute;
+    const segments = posAttr.count;
+    const trailSpanDays = p.orbitalPeriodDays * 0.14; // Last ~50° of orbit
+    for (let i = 0; i < segments; i++) {
+      const t = i / (segments - 1);
+      const sampleJD = jd - (1 - t) * trailSpanDays;
+      const pos = computePlanetPosition(bodyId, sampleJD, 1.0);
+      posAttr.setXYZ(i, pos.x, pos.y + 1.2, pos.z);
+    }
+    posAttr.needsUpdate = true;
+  }
+
   private buildSolarSystemAndAsteroids(): void {
     this.solarSystemGroup = new THREE.Group();
     this.solarSystemGroup.visible = false;
     this.scene.add(this.solarSystemGroup);
 
-    this.earthOrbitLine = this.buildKeplerOrbitLine('earth', '#38bdf8', 0.28);
+    this.earthOrbitLine = this.buildKeplerOrbitLine('earth', '#38bdf8', 0.25);
     this.scene.add(this.earthOrbitLine);
+
+    this.earthTrailLine = this.buildFadingTrailLine('#38bdf8');
+    this.solarSystemGroup.add(this.earthTrailLine);
+
+    const atmoColors: Partial<Record<BodyId, [string, number]>> = {
+      venus: ['#fbbf24', 0.58],
+      mars: ['#f97316', 0.42],
+      jupiter: ['#fde68a', 0.3],
+      uranus: ['#22d3ee', 0.5],
+      neptune: ['#3b82f6', 0.62],
+    };
 
     SOLAR_PLANET_KEYS.forEach((key) => {
       const p = PLANET_DATA[key];
-      const orbitLine = this.buildKeplerOrbitLine(key, p.color, 0.22);
+      const orbitLine = this.buildKeplerOrbitLine(key, p.color, 0.2);
       this.solarSystemGroup.add(orbitLine);
+
+      const trailLine = this.buildFadingTrailLine(p.color);
+      this.solarSystemGroup.add(trailLine);
 
       const rootGroup = new THREE.Group();
       this.solarSystemGroup.add(rootGroup);
@@ -522,11 +716,14 @@ export class SolarSystemScene {
       );
       tiltGroup.add(axisRod);
 
+      const hasBump = key === 'mercury' || key === 'mars';
       const mesh = new THREE.Mesh(
-        new THREE.SphereGeometry(p.modelRadius, 40, 40),
+        new THREE.SphereGeometry(p.modelRadius, 48, 48),
         new THREE.MeshStandardMaterial({
           map: createDetailedPlanetTexture(key),
-          roughness: 0.65,
+          bumpMap: hasBump ? createPlanetBumpTexture(key) : undefined,
+          bumpScale: hasBump ? 0.035 : 0,
+          roughness: hasBump ? 0.82 : 0.62,
           metalness: 0.04,
         })
       );
@@ -534,10 +731,21 @@ export class SolarSystemScene {
       tiltGroup.add(mesh);
       this.clickableMeshes.push(mesh);
 
-      if (p.hasRings) {
+      // Subtle Fresnel atmospheric rim halos
+      const atmoSpec = atmoColors[key];
+      if (atmoSpec) {
+        const atmoMesh = new THREE.Mesh(
+          new THREE.SphereGeometry(p.modelRadius * 1.06, 36, 36),
+          createPlanetAtmosphereMaterial(atmoSpec[0], atmoSpec[1])
+        );
+        tiltGroup.add(atmoMesh);
+      }
+
+      // Saturn rings with custom GLSL planetary shadow shader!
+      if (key === 'saturn') {
         const innerR = p.modelRadius * 1.32;
-        const outerR = p.modelRadius * 2.38;
-        const ringGeo = new THREE.RingGeometry(innerR, outerR, 72);
+        const outerR = p.modelRadius * 2.42;
+        const ringGeo = new THREE.RingGeometry(innerR, outerR, 84);
         const pos = ringGeo.attributes.position;
         const uv = ringGeo.attributes.uv;
         for (let i = 0; i < pos.count; i++) {
@@ -545,20 +753,71 @@ export class SolarSystemScene {
           uv.setXY(i, (r - innerR) / (outerR - innerR), 0.5);
         }
         ringGeo.rotateX(Math.PI / 2);
-        const ringMesh = new THREE.Mesh(
-          ringGeo,
-          new THREE.MeshStandardMaterial({
-            map: createSaturnRingTexture(),
-            side: THREE.DoubleSide,
-            transparent: true,
-            roughness: 0.72,
-            depthWrite: false,
-          })
-        );
-        mesh.add(ringMesh);
+        this.saturnRingMat = createSaturnRingShadowMaterial(createSaturnRingTexture());
+        mesh.add(new THREE.Mesh(ringGeo, this.saturnRingMat));
       }
 
-      this.planetRigs.set(key, { key, rootGroup, tiltGroup, mesh, orbitLine });
+      // Uranus delicate vertical icy rings (tilted 97.8° with Uranus!)
+      if (key === 'uranus') {
+        const innerR = p.modelRadius * 1.42;
+        const outerR = p.modelRadius * 1.92;
+        const ringGeo = new THREE.RingGeometry(innerR, outerR, 64);
+        const pos = ringGeo.attributes.position;
+        const uv = ringGeo.attributes.uv;
+        for (let i = 0; i < pos.count; i++) {
+          const r = Math.hypot(pos.getX(i), pos.getY(i));
+          uv.setXY(i, (r - innerR) / (outerR - innerR), 0.5);
+        }
+        ringGeo.rotateX(Math.PI / 2);
+        mesh.add(
+          new THREE.Mesh(
+            ringGeo,
+            new THREE.MeshBasicMaterial({
+              map: createUranusRingTexture(),
+              side: THREE.DoubleSide,
+              transparent: true,
+              opacity: 0.72,
+              depthWrite: false,
+            })
+          )
+        );
+      }
+
+      // Jupiter's 4 Galilean Moons (Io, Europa, Ganymede, Callisto) in Laplace resonance!
+      if (key === 'jupiter') {
+        const jMoons = [
+          { r: 0.11, dist: 3.1, color: '#facc15', speed: 4.0, phase: 0.2 },   // Io (volcanic yellow)
+          { r: 0.095, dist: 3.7, color: '#e2e8f0', speed: 2.0, phase: 1.9 },  // Europa (icy white)
+          { r: 0.145, dist: 4.4, color: '#a8a29e', speed: 1.0, phase: 3.6 },  // Ganymede
+          { r: 0.125, dist: 5.2, color: '#78716c', speed: 0.43, phase: 5.1 }, // Callisto
+        ];
+        jMoons.forEach((jm) => {
+          // Thin orbit ring
+          const pts: THREE.Vector3[] = [];
+          for (let i = 0; i < 64; i++) {
+            const a = (i / 64) * Math.PI * 2;
+            pts.push(new THREE.Vector3(Math.cos(a) * jm.dist, 0, Math.sin(a) * jm.dist));
+          }
+          rootGroup.add(
+            new THREE.LineLoop(
+              new THREE.BufferGeometry().setFromPoints(pts),
+              new THREE.LineBasicMaterial({ color: jm.color, transparent: true, opacity: 0.18 })
+            )
+          );
+
+          const pivot = new THREE.Group();
+          const mMesh = new THREE.Mesh(
+            new THREE.SphereGeometry(jm.r, 16, 16),
+            new THREE.MeshStandardMaterial({ color: jm.color, roughness: 0.75 })
+          );
+          mMesh.position.set(jm.dist, 0, 0);
+          pivot.add(mMesh);
+          rootGroup.add(pivot);
+          this.galileanMoons.push({ pivot, speed: jm.speed, phase: jm.phase });
+        });
+      }
+
+      this.planetRigs.set(key, { key, rootGroup, tiltGroup, mesh, orbitLine, trailLine });
       this.createLabel(key, `${p.name} · ${p.badge.split(' ')[0]}`, rootGroup, p.modelRadius + 0.9, p.color, ['solar']);
     });
 
@@ -772,10 +1031,12 @@ export class SolarSystemScene {
       const mat = this.earthCloudsMesh.material as THREE.MeshLambertMaterial;
       this.earthCloudsMesh.visible = state.showClouds && Boolean(mat.map);
       this.earthAtmoMesh.visible = state.showClouds;
+      this.auroraGroup.visible = state.showClouds;
     }
     if (changed.has('showTropics')) {
       this.tropicsGroup.visible = state.showTropics;
       this.subsolarMarker.visible = state.showTropics && state.mode !== 'comparison';
+      this.solarRaysGroup.visible = state.showTropics && state.mode !== 'comparison';
     }
     if (changed.has('selectedCityId') || changed.has('customPin')) {
       this.updateCityPinPosition(state.selectedCityId);
@@ -805,6 +1066,8 @@ export class SolarSystemScene {
     this.comparisonGroup.visible = isComparison;
     this.sunMesh.visible = !isComparison;
     this.sunCoronaSprite.visible = !isComparison;
+    this.sunLensFlareSprite.visible = !isComparison;
+    this.sunProminencesGroup.visible = !isComparison;
     this.mainArmGroup.visible = !isComparison;
     this.earthOrbitLine.visible = !isComparison;
     this.solarSystemGroup.visible = isSolar;
@@ -812,6 +1075,8 @@ export class SolarSystemScene {
     this.tellurion.lightBeamCone.visible = isTellurion && store.get().showLightBeam;
     this.tellurion.moonOrbitRingGroup.visible = !isComparison;
     this.subsolarMarker.visible = !isComparison && store.get().showTropics;
+    this.solarRaysGroup.visible = !isComparison && store.get().showTropics;
+    if (isComparison) this.eclipseConeGroup.visible = false;
 
     if (instant) {
       this.tellurionDropProgress = isTellurion ? 0 : 1;
@@ -957,10 +1222,14 @@ export class SolarSystemScene {
       Math.sin(lunar.draconicAngleRad) * 3.6 * Math.sin(THREE.MathUtils.degToRad(MOON_INCLINATION_DEG));
     this.moonMesh.position.y = moonYOffset;
 
+    // Keep educational parallel solar rays synced with Earth's orbital radius & scale
+    this.solarRaysGroup.position.set(earthRadius, 1.2, 0);
+    this.solarRaysGroup.scale.setScalar(state.planetScale);
+
     // Position 90° Subsolar Point Marker on Earth's Sun-facing surface
+    const earthWorld = new THREE.Vector3();
+    this.earthTiltGroup.getWorldPosition(earthWorld);
     if (this.subsolarMarker.visible) {
-      const earthWorld = new THREE.Vector3();
-      this.earthTiltGroup.getWorldPosition(earthWorld);
       const sunWorld = new THREE.Vector3(0, 1.2, 0);
       const toSun = sunWorld.sub(earthWorld).normalize();
       const surfR = PLANET_DATA.earth.modelRadius * state.planetScale * 1.032;
@@ -973,21 +1242,65 @@ export class SolarSystemScene {
     this.earthShaderMat.uniforms.uMoonPosition.value.copy(this.tempMoonWorld);
     this.earthShaderMat.uniforms.uMoonRadius.value = PLANET_DATA.moon.modelRadius * state.planetScale;
 
-    // Blood Moon tint during Lunar Eclipse!
-    if (lunar.eclipseType === 'lunar') {
+    // 3D Eclipse Umbra & Penumbra Shadow Cones + Blood Moon tint
+    if (state.mode !== 'comparison' && lunar.eclipseType === 'solar') {
+      this.eclipseConeGroup.visible = true;
+      this.eclipseConeGroup.position.copy(this.tempMoonWorld);
+      this.eclipseConeGroup.lookAt(earthWorld);
+      const dist = this.tempMoonWorld.distanceTo(earthWorld);
+      this.eclipseConeGroup.scale.set(
+        state.planetScale,
+        state.planetScale,
+        Math.max(1, dist)
+      );
+      const alpha = Math.min(1, 0.35 + lunar.eclipseIntensity * 0.65);
+      this.eclipseUmbraMat.opacity = 0.45 * alpha;
+      this.eclipsePenumbraMat.opacity = 0.2 * alpha;
+      this.moonMaterial.color.setRGB(1, 1, 1);
+      this.moonMaterial.emissive.setRGB(0, 0, 0);
+    } else if (state.mode !== 'comparison' && lunar.eclipseType === 'lunar') {
+      this.eclipseConeGroup.visible = true;
+      this.eclipseConeGroup.position.copy(earthWorld);
+      this.eclipseConeGroup.lookAt(this.tempMoonWorld);
+      const dist = earthWorld.distanceTo(this.tempMoonWorld) + 1.0;
+      this.eclipseConeGroup.scale.set(
+        state.planetScale * 2.7,
+        state.planetScale * 2.7,
+        Math.max(1, dist)
+      );
       const intensity = Math.min(1, lunar.eclipseIntensity * 1.4);
+      this.eclipseUmbraMat.opacity = 0.35 * intensity;
+      this.eclipsePenumbraMat.opacity = 0.16 * intensity;
       this.moonMaterial.color.setRGB(1.0, 1.0 - 0.62 * intensity, 1.0 - 0.72 * intensity);
       this.moonMaterial.emissive.setRGB(0.28 * intensity, 0.04 * intensity, 0.01 * intensity);
     } else {
+      this.eclipseConeGroup.visible = false;
       this.moonMaterial.color.setRGB(1, 1, 1);
       this.moonMaterial.emissive.setRGB(0, 0, 0);
     }
 
-    // Other solar system planets (true Kepler elliptical 3D positions + fixed inertial axial tilt)
+    // Other solar system planets (true Kepler elliptical 3D positions + Saturn shadow + orbital trails)
+    if (state.mode === 'solar') {
+      this.updateTrailGeometry(this.earthTrailLine, 'earth', jd);
+    }
     this.planetRigs.forEach((rig, key) => {
       const pos = computePlanetPosition(key, jd, 1.0);
       rig.rootGroup.position.set(pos.x, pos.y + 1.2, pos.z);
       rig.mesh.rotation.y = spinDay * 0.1 * PLANET_DATA[key].rotSpeed;
+
+      if (key === 'saturn' && this.saturnRingMat) {
+        this.saturnRingMat.uniforms.uPlanetPosition.value.set(pos.x, pos.y + 1.2, pos.z);
+        this.saturnRingMat.uniforms.uPlanetRadius.value =
+          PLANET_DATA.saturn.modelRadius * state.planetScale;
+      }
+      if (state.mode === 'solar') {
+        this.updateTrailGeometry(rig.trailLine, key, jd);
+      }
+    });
+
+    // Jupiter's 4 Galilean Moons (Io, Europa, Ganymede, Callisto)
+    this.galileanMoons.forEach((gm) => {
+      gm.pivot.rotation.y = gm.phase + spinDay * 0.25 * gm.speed;
     });
 
     // Subtle mechanical escapement tick in Tellurion mode
@@ -1103,10 +1416,17 @@ export class SolarSystemScene {
       this.updatePositions(store.get());
     }
 
-    // Animated solar plasma & corona pulse
+    // Animated solar plasma, prominences, lens flare, aurora & twinkling stars
     this.sunPlasmaMat.uniforms.uTime.value = elapsed;
+    if (this.starsMat) this.starsMat.uniforms.uTime.value = elapsed;
+    if (this.auroraMat) this.auroraMat.uniforms.uTime.value = elapsed;
+    if (this.sunProminencesGroup) this.sunProminencesGroup.rotation.y = elapsed * 0.035;
     const pulse = 13.6 + Math.sin(elapsed * 1.5) * 0.35;
     this.sunCoronaSprite.scale.set(pulse, pulse, 1);
+    if (this.sunLensFlareSprite) {
+      const flareScale = 17.2 + Math.sin(elapsed * 2.1) * 0.6;
+      this.sunLensFlareSprite.scale.set(flareScale, flareScale, 1);
+    }
 
     // Smooth Tellurion hardware drop transition when switching to Solar System
     const targetDrop = state.mode === 'tellurion' ? 0 : 1;

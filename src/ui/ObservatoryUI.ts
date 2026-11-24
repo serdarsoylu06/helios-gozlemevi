@@ -77,6 +77,10 @@ export class ObservatoryUI {
             <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 6.91-1.01z"/></svg>
             <span class="hidden sm:inline">Rehberli Tur</span>
           </button>
+          <button id="btn-presentation" title="Sunum / Planetaryum Modu (H)" aria-label="Sunum modu (H)" class="hud-panel px-2.5 py-2 rounded-2xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/10 transition flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M8 20v2m8-2v2"/></svg>
+            <span class="hidden lg:inline">Sunum (H)</span>
+          </button>
         </div>
       </header>
 
@@ -284,6 +288,15 @@ export class ObservatoryUI {
           </div>
         </div>
       </footer>
+
+      <!-- Sunum / Planetaryum Modu Minimal Damgası -->
+      <div id="ui-presentation-badge" class="hidden fixed bottom-5 left-5 z-40 pointer-events-auto hud-panel px-3.5 py-2 rounded-2xl flex items-center gap-3">
+        <div>
+          <div id="ui-pres-date" class="text-xs font-semibold text-white">21 Mart 2026</div>
+          <div id="ui-pres-sub" class="text-[10px] font-mono-num text-amber-300">İlkbahar · 1.000 AU</div>
+        </div>
+        <button id="btn-exit-presentation" class="px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/20 text-[11px] font-medium text-slate-200 transition">H · Arayüzü Göster</button>
+      </div>
     `;
   }
 
@@ -398,8 +411,14 @@ export class ObservatoryUI {
       store.set({ useSound: (e.target as HTMLInputElement).checked })
     );
 
-    // Guided Tour controls
+    // Guided Tour & Presentation Mode controls
     document.getElementById('btn-start-tour')!.addEventListener('click', () => this.applyTourStep(0));
+    document.getElementById('btn-presentation')!.addEventListener('click', () =>
+      store.set({ presentationMode: true })
+    );
+    document.getElementById('btn-exit-presentation')!.addEventListener('click', () =>
+      store.set({ presentationMode: false })
+    );
     document.getElementById('btn-tour-close')!.addEventListener('click', () =>
       store.set({ activeTourIndex: null })
     );
@@ -503,6 +522,20 @@ export class ObservatoryUI {
       btn.setAttribute('aria-expanded', String(state.rightPanelOpen));
     }
 
+    // Presentation / Planetarium Mode (hides all HUD chrome smoothly)
+    if (changed.has('presentationMode')) {
+      const pres = state.presentationMode;
+      const chromeSelectors = ['header', 'aside', 'footer', '#ui-tour-card', '#right-panel-body', '#btn-toggle-right'];
+      chromeSelectors.forEach((sel) => {
+        const el = this.root.querySelector<HTMLElement>(sel);
+        if (!el) return;
+        el.style.transition = 'opacity 0.28s ease';
+        el.style.opacity = pres ? '0' : '1';
+        el.style.visibility = pres ? 'hidden' : 'visible';
+      });
+      document.getElementById('ui-presentation-badge')!.classList.toggle('hidden', !pres);
+    }
+
     // Play/Pause, Speed, Scale, Switches
     if (changed.has('isPlaying')) {
       document.getElementById('ui-play-icon')!.innerHTML = state.isPlaying ? ICON_PAUSE : ICON_PLAY;
@@ -590,6 +623,10 @@ export class ObservatoryUI {
         const earthOrb = computePlanetPosition('earth', state.jd);
         document.getElementById('ui-earth-au')!.textContent =
           `${earthOrb.radiusAU.toFixed(3)} AU · ${earthOrb.speedKmS.toFixed(1)} km/s`;
+
+        document.getElementById('ui-pres-date')!.textContent = formatTurkishDate(dateObj);
+        document.getElementById('ui-pres-sub')!.textContent =
+          `${season.name} · ${earthOrb.radiusAU.toFixed(3)} AU · ${earthOrb.speedKmS.toFixed(1)} km/s`;
 
         const declDeg = computeSolarDeclinationDeg(state.jd);
         document.getElementById('ui-decl-text')!.textContent = `${declDeg >= 0 ? '+' : ''}${declDeg.toFixed(1)}°`;

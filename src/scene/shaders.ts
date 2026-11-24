@@ -225,3 +225,205 @@ export function createSunPlasmaMaterial(): THREE.ShaderMaterial {
     `,
   });
 }
+
+/**
+ * Custom GLSL Saturn Ring Shader with real-time Planetary Shadow cast by Saturn onto its rings
+ */
+export function createSaturnRingShadowMaterial(ringMap: THREE.Texture): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uRingMap: { value: ringMap },
+      uSunPosition: { value: new THREE.Vector3(0, 1.2, 0) },
+      uPlanetPosition: { value: new THREE.Vector3(34, 1.2, 0) },
+      uPlanetRadius: { value: 1.9 },
+    },
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+      void main() {
+        vUv = uv;
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform sampler2D uRingMap;
+      uniform vec3 uSunPosition;
+      uniform vec3 uPlanetPosition;
+      uniform float uPlanetRadius;
+
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+
+      void main() {
+        vec4 tex = texture2D(uRingMap, vUv);
+        if (tex.a < 0.02) discard;
+
+        // Ray from ring point toward Sun: test intersection with Saturn sphere
+        vec3 toSun = normalize(uSunPosition - vWorldPos);
+        vec3 toPlanet = uPlanetPosition - vWorldPos;
+        float proj = dot(toPlanet, toSun);
+        float shadow = 1.0;
+        if (proj > 0.0) {
+          vec3 perp = toPlanet - toSun * proj;
+          float d = length(perp);
+          shadow = mix(0.12, 1.0, smoothstep(uPlanetRadius * 0.94, uPlanetRadius * 1.06, d));
+        }
+
+        vec3 col = tex.rgb * (0.14 + 0.92 * shadow);
+        gl_FragColor = vec4(col, tex.a);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }
+    `,
+    side: THREE.DoubleSide,
+    transparent: true,
+    depthWrite: false,
+  });
+}
+
+/**
+ * Custom GLSL Aurora Borealis & Australis Curtain Shader (brightest on Earth's night side)
+ */
+export function createAuroraMaterial(): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uSunPosition: { value: new THREE.Vector3(0, 1.2, 0) },
+    },
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+      varying vec3 vWorldNormal;
+      void main() {
+        vUv = uv;
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        vWorldNormal = normalize(mat3(modelMatrix) * normal);
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform float uTime;
+      uniform vec3 uSunPosition;
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+      varying vec3 vWorldNormal;
+
+      void main() {
+        vec3 L = normalize(uSunPosition - vWorldPos);
+        vec3 N = normalize(vWorldNormal);
+        float nightMask = 1.0 - smoothstep(-0.15, 0.25, dot(N, L));
+
+        // Vertical flowing aurora curtains
+        float wave1 = sin(vUv.x * 28.0 + uTime * 1.4 + sin(vUv.x * 9.0 - uTime * 0.7) * 2.0);
+        float wave2 = sin(vUv.x * 46.0 - uTime * 1.9);
+        float curtain = smoothstep(-0.2, 0.9, wave1 * 0.65 + wave2 * 0.35);
+
+        // Vertical fade (bright bottom emerald edge, soft fading violet top)
+        float vertFade = smoothstep(0.0, 0.22, vUv.y) * (1.0 - smoothstep(0.35, 1.0, vUv.y));
+
+        vec3 emerald = vec3(0.12, 0.95, 0.55);
+        vec3 violet = vec3(0.62, 0.25, 0.96);
+        vec3 col = mix(emerald, violet, smoothstep(0.18, 0.85, vUv.y));
+
+        float alpha = curtain * vertFade * (0.28 + 0.72 * nightMask) * 0.72;
+        if (alpha < 0.01) discard;
+        gl_FragColor = vec4(col * 1.3, alpha);
+      }
+    `,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    transparent: true,
+    depthWrite: false,
+  });
+}
+
+/**
+ * Reusable Fresnel Atmospheric Rim Halo Shader for Venus, Mars, Jupiter, Uranus, Neptune
+ */
+export function createPlanetAtmosphereMaterial(
+  colorHex: string,
+  intensity = 0.55
+): THREE.ShaderMaterial {
+  const c = new THREE.Color(colorHex);
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uSunPosition: { value: new THREE.Vector3(0, 1.2, 0) },
+      uColor: { value: c },
+      uIntensity: { value: intensity },
+    },
+    vertexShader: /* glsl */ `
+      varying vec3 vWorldNormal;
+      varying vec3 vWorldPos;
+      void main() {
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        vWorldNormal = normalize(mat3(modelMatrix) * normal);
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uSunPosition;
+      uniform vec3 uColor;
+      uniform float uIntensity;
+      varying vec3 vWorldNormal;
+      varying vec3 vWorldPos;
+      void main() {
+        vec3 N = normalize(vWorldNormal);
+        vec3 V = normalize(cameraPosition - vWorldPos);
+        vec3 L = normalize(uSunPosition - vWorldPos);
+        float rim = pow(clamp(1.0 - max(dot(N, V), 0.0), 0.0, 1.0), 3.4);
+        float sunSide = smoothstep(-0.3, 0.65, dot(N, L));
+        gl_FragColor = vec4(uColor, rim * uIntensity * (0.2 + 0.8 * sunSide));
+      }
+    `,
+    blending: THREE.AdditiveBlending,
+    side: THREE.FrontSide,
+    transparent: true,
+    depthWrite: false,
+  });
+}
+
+/**
+ * Subtle Twinkling Deep-Space Starfield Shader
+ */
+export function createTwinklingStarsMaterial(): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uPixelRatio: { value: Math.min(window.devicePixelRatio || 1, 2) },
+    },
+    vertexShader: /* glsl */ `
+      attribute float aSize;
+      attribute float aPhase;
+      varying vec3 vColor;
+      varying float vTwinkle;
+      uniform float uTime;
+      uniform float uPixelRatio;
+
+      void main() {
+        vColor = color;
+        vTwinkle = 0.72 + 0.28 * sin(uTime * 1.6 + aPhase);
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = aSize * uPixelRatio * (320.0 / max(1.0, -mvPosition.z));
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      varying vec3 vColor;
+      varying float vTwinkle;
+      void main() {
+        float d = length(gl_PointCoord - vec2(0.5));
+        if (d > 0.5) discard;
+        float core = smoothstep(0.5, 0.05, d);
+        gl_FragColor = vec4(vColor * vTwinkle, core * 0.92);
+      }
+    `,
+    vertexColors: true,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+}

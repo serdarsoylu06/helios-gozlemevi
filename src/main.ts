@@ -37,8 +37,14 @@ function bootstrap(): void {
       store.set({ mode: 'solar', activeTourIndex: null });
     } else if (e.key === '3') {
       store.set({ mode: 'comparison', activeTourIndex: null });
-    } else if (e.key === 'Escape' && store.get().activeTourIndex !== null) {
-      store.set({ activeTourIndex: null });
+    } else if (e.key === 'h' || e.key === 'H') {
+      store.set({ presentationMode: !store.get().presentationMode });
+    } else if (e.key === 'Escape') {
+      if (store.get().presentationMode) {
+        store.set({ presentationMode: false });
+      } else if (store.get().activeTourIndex !== null) {
+        store.set({ activeTourIndex: null });
+      }
     }
   });
   // Register PWA Service Worker in production builds

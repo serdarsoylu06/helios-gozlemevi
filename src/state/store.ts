@@ -25,6 +25,7 @@ export interface AppState {
   useSound: boolean;
   sidebarOpen: boolean;
   rightPanelOpen: boolean;
+  presentationMode: boolean;
   activeTourIndex: number | null;
   textureQuality: 'loading' | 'nasa-2k' | 'procedural';
 }
@@ -81,6 +82,7 @@ export const store = new Store({
   useSound: false,
   sidebarOpen: isDesktop,
   rightPanelOpen: isDesktop,
+  presentationMode: false,
   activeTourIndex: null,
   textureQuality: 'loading',
 });
